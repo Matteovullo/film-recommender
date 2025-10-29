@@ -1,0 +1,68 @@
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body { font-family: Arial, sans-serif; background: #f5f6fa; padding: 20px; }
+.container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
+.header { text-align: center; margin-bottom: 30px; }
+.header h1 { color: #2c3e50; margin-bottom: 10px; }
+.header p { color: #7f8c8d; }
+.btn { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
+.btn:hover { background: #2980b9; }
+.btn:disabled { background: #bdc3c7; cursor: not-allowed; }
+.form-control { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; margin: 10px 0; }
+.recommendation-item { background: #ecf0f1; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #3498db; }
+.success-message { background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin: 10px 0; }
+.error-message { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 6px; margin: 10px 0; }
+
+/* Messaggi */
+.message {
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 15px 20px;
+    border-radius: 8px;
+    font-weight: 600;
+    z-index: 1000;
+    max-width: 400px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+
+.success-message { 
+    background: #d4edda; 
+    color: #155724; 
+    border: 1px solid #c3e6cb; 
+}
+
+.error-message { 
+    background: #f8d7da; 
+    color: #721c24; 
+    border: 1px solid #f5c6cb; 
+}
+
+.info-message { 
+    background: #d1ecf1; 
+    color: #0c5460; 
+    border: 1px solid #bee5eb; 
+}
+
+/* Error card per dashboard */
+.error-card {
+    background: #f8d7da;
+    color: #721c24;
+    padding: 20px;
+    border-radius: 8px;
+    text-align: center;
+    border-left: 4px solid #dc3545;
+}
+
+.btn-retry {
+    background: #dc3545;
+    color: white;
+    border: none;
+    padding: 8px 16px;
+    border-radius: 4px;
+    cursor: pointer;
+    margin-top: 10px;
+}
+
+.btn-retry:hover {
+    background: #c82333;
+}

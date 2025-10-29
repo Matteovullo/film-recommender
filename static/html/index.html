@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Film Recommender - Login</title>
+    <link rel="stylesheet" href="/static/css/auth.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Sistema di Raccomandazione Film</h1>
+            <p>Accedi per scoprire i film perfetti per te</p>
+        </div>
+
+        <div class="content">
+            <div class="welcome-text">
+                <h3>Benvenuto</h3>
+                <p>Inserisci le tue credenziali per accedere</p>
+            </div>
+
+            <div class="message error" id="errorMessage"></div>
+            <div class="message success" id="successMessage"></div>
+            <div class="message info" id="infoMessage"></div>
+
+            <div class="auth-form">
+                <input type="email" id="email" placeholder="La tua email" required>
+                <input type="password" id="password" placeholder="La tua password (min. 8 caratteri)" required>
+                
+                <button class="btn" onclick="signIn()">Accedi</button>
+                <button class="btn btn-secondary" onclick="signUp()">Registrati</button>
+            </div>
+
+            <div class="verification-section" id="verificationSection">
+                <h4>🔐 Verifica Account</h4>
+                <p>Inserisci il codice di verifica inviato alla tua email</p>
+                <input type="text" id="verificationCode" placeholder="Codice di verifica (6 cifre)" maxlength="6" pattern="[0-9]{6}">
+                <div class="btn-group">
+                    <button class="btn" onclick="confirmSignUp()">Verifica Account</button>
+                    <button class="btn btn-secondary" onclick="resendVerificationCode()">Rinvia Codice</button>
+                </div>
+                <button class="btn" style="margin-top:10px; background:#95a5a6;" onclick="hideVerification()">Annulla</button>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/auth.js"></script>
+</body>
+</html>

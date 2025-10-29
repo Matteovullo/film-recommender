@@ -1,0 +1,77 @@
+let currentToken = localStorage.getItem('cognitoToken');
+let currentUser = localStorage.getItem('cognitoUser');
+
+// URL API Gateway - sarà aggiornato dopo il deploy
+let API_BASE_URL = 'https://g1q9d4xdfg.execute-api.eu-west-1.amazonaws.com/Prod';
+
+function showMessage(text, type = 'info') {
+    alert(text);
+}
+
+window.getRecommendations = async () => {
+    const genre = document.getElementById('genre').value;
+    if (!genre) {
+        showMessage('Seleziona un genere');
+        return;
+    }
+
+    const recommendBtn = document.getElementById('recommendBtn');
+    recommendBtn.innerHTML = 'Elaborazione...';
+    recommendBtn.disabled = true;
+
+    try {
+        const response = await fetch(API_BASE_URL + '/api/recommend', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${currentToken}`,
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ preferences: { genre } })
+        });
+
+        if (!response.ok) {
+            throw new Error(`Errore API: ${response.status}`);
+        }
+
+        const result = await response.json();
+
+        if (result.recommendations && result.recommendations.length > 0) {
+            document.getElementById('recommendationsList').innerHTML = 
+                result.recommendations.map(t => `
+                    <div class="recommendation-item">
+                        <h4>${t}</h4>
+                        <p>Basato sul genere ${genre}</p>
+                        <small>Architettura: ${result.architecture}</small>
+                    </div>
+                `).join('');
+            document.getElementById('results').style.display = 'block';
+            showMessage('Raccomandazioni caricate con successo!', 'success');
+        } else {
+            document.getElementById('recommendationsList').innerHTML = 
+                '<div class="recommendation-item">Nessuna raccomandazione disponibile</div>';
+            document.getElementById('results').style.display = 'block';
+            showMessage('Nessuna raccomandazione trovata', 'info');
+        }
+
+    } catch (err) {
+        showMessage('Errore: ' + err.message, 'error');
+    } finally {
+        recommendBtn.innerHTML = 'Ottieni Raccomandazioni';
+        recommendBtn.disabled = false;
+    }
+};
+
+window.signOut = function() {
+    localStorage.removeItem('cognitoToken');
+    localStorage.removeItem('cognitoUser');
+    window.location.href = '/';
+};
+
+// Verifica autenticazione
+if (!currentToken || !currentUser) {
+    window.location.href = '/';
+} else {
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('Utente autenticato:', currentUser);
+    });
+}

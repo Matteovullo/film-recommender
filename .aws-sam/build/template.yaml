@@ -1,0 +1,33 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Resources:
+  FilmRecommenderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: FilmRecommenderFunction
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Events:
+        RecommendApi:
+          Type: Api
+          Properties:
+            Path: /api/recommend
+            Method: POST
+        AnalyticsApi:
+          Type: Api
+          Properties:
+            Path: /api/analytics
+            Method: GET
+        HealthApi:
+          Type: Api
+          Properties:
+            Path: /api/health
+            Method: GET
+    Metadata:
+      SamResourceId: FilmRecommenderFunction
+Outputs:
+  ApiUrl:
+    Description: API Gateway URL
+    Value:
+      Fn::Sub: https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod

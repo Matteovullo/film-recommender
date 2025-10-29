@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Film Recommender</title>
+    <link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎬 Film Recommender</h1>
+            <p>Elastic Beanstalk + EC2</p>
+        </div>
+
+        <div class="content">
+            <div class="preferences-section">
+                <h3>🎯 Le tue Preferenze</h3>
+                <div class="form-group">
+                    <label for="genre">Genere Preferito:</label>
+                    <select id="genre" class="form-control">
+                        <option value="">Seleziona un genere...</option>
+                        <option value="sci-fi">Sci-Fi</option>
+                        <option value="fantasy">Fantasy</option>
+                        <option value="dystopian">Distopico</option>
+                        <option value="thriller">Thriller</option>
+                        <option value="action">Azione</option>
+                    </select>
+                </div>
+                <button class="btn" id="recommendBtn" onclick="getRecommendations()">
+                    Ottieni Raccomandazioni
+                </button>
+            </div>
+
+            <div class="results-section" id="results" style="display:none;">
+                <h3>🎭 Film Consigliati per Te</h3>
+                <div id="recommendationsList"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="/static/js/app.js"></script>
+</body>
+</html>
