@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard - Film Recommender</title>
+    <link rel="stylesheet" href="/static/css/dashboard.css">
+</head>
+<body>
+    <div class="dashboard">
+        <div class="header">
+            <h1>📊 Film Recommender Dashboard</h1>
+            <p>Elastic Beanstalk + EC2</p>
+        </div>
+
+        <div class="content">
+            <div class="info-card">
+                <h3>🚀 Architettura Attiva</h3>
+                <p>Elastic Beanstalk con EC2 t2.micro</p>
+                <p><strong>Costo stimato: ~$10/mese</strong></p>
+            </div>
+
+            <button class="btn" onclick="testBackend()">Test Backend</button>
+            <div id="testResult"></div>
+        </div>
+    </div>
+
+    <script src="/static/js/dashboard.js"></script>
+</body>
+</html>

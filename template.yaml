@@ -1,0 +1,72 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+
+Resources:
+  # ==================================================
+  # SQS QUEUES - DEFINIRE PRIMA LA DLQ
+  # ==================================================
+  FilmRecommenderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: "film-recommender-dlq"
+      MessageRetentionPeriod: 1209600
+
+  FilmRecommenderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: "film-recommender-queue"
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt FilmRecommenderDLQ.Arn  # CORRETTO: !GetAtt
+        maxReceiveCount: 3
+
+  # ==================================================
+  # LAMBDA FUNCTIONS
+  # ==================================================
+  FilmRecommenderFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambda/src/
+      Handler: lambda_function.lambda_handler
+      Runtime: python3.9
+      Timeout: 30
+      Events:
+        RecommendApi:
+          Type: Api
+          Properties:
+            Path: /api/recommend
+            Method: POST
+        AnalyticsApi:
+          Type: Api
+          Properties:
+            Path: /api/analytics
+            Method: GET
+        HealthApi:
+          Type: Api
+          Properties:
+            Path: /api/health
+            Method: GET
+
+  FilmRecommenderQueueProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: "film-recommender-queue-processor"
+      Runtime: python3.9
+      Handler: queue_processor.lambda_handler
+      CodeUri: lambda/src/
+      Timeout: 300
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt FilmRecommenderQueue.Arn  # CORRETTO: !GetAtt
+            BatchSize: 5
+      Environment:
+        Variables:
+          ECR_REPOSITORY: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender"
+
+Outputs:
+  ApiUrl:
+    Description: "API Gateway URL"
+    Value: !Sub "https://${ServerlessRestApi}.execute-api.${AWS::Region}.amazonaws.com/Prod"
