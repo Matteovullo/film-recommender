@@ -1,1 +1,5 @@
 github-config.env
+.DS_Store
+.aws-sam/
+*.bak
+*~

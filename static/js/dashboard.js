@@ -1,7 +1,11 @@
 let charts = {};
 
 // IMPORTANTE: Usa endpoint FLASK locali
+<<<<<<< HEAD
 let API_BASE_URL = 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod';
+=======
+let API_BASE_URL = ''; // Vuoto = stesso dominio
+>>>>>>> origin/main
 
 async function loadAnalytics() {
     showLoading();

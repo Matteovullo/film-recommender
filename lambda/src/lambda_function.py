@@ -26,8 +26,11 @@ def lambda_handler(event, context):
     
     if path == '/api/recommend' and method == 'POST':
         return handle_recommendations(event, headers)
+<<<<<<< HEAD
     elif path == '/api/recommend/async' and method == 'POST':  # NUOVO ENDPOINT SQS
         return handle_async_recommendation(event)
+=======
+>>>>>>> origin/main
     elif path == '/api/analytics' and method == 'GET':
         return handle_analytics(event, headers)
     elif path == '/api/health' and method == 'GET':
@@ -104,6 +107,7 @@ def handle_recommendations(event, headers):
             'body': json.dumps({'error': str(e)})
         }
 
+<<<<<<< HEAD
 def handle_async_recommendation(event):
     """
     NUOVO ENDPOINT per raccomandazioni asincrone via SQS
@@ -186,6 +190,8 @@ def send_to_sqs_queue(user_preferences, user_id="anonymous"):
         print(f"❌ Error sending to SQS: {e}")
         return None
 
+=======
+>>>>>>> origin/main
 def handle_analytics(event, headers):
     return {
         'statusCode': 200,
