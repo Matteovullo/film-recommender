@@ -2,11 +2,7 @@ let currentToken = localStorage.getItem('cognitoToken');
 let currentUser = localStorage.getItem('cognitoUser');
 
 // IMPORTANTE: Usa gli endpoint FLASK locali, non API Gateway diretto
-<<<<<<< HEAD
 let API_BASE_URL = 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod';
-=======
-let API_BASE_URL = ''; // Vuoto = stesso dominio
->>>>>>> origin/main
 
 function showMessage(text, type = 'info') {
     // Crea un messaggio visibile nell'UI

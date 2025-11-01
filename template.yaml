@@ -2,7 +2,6 @@ AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 
 Resources:
-<<<<<<< HEAD
   # ==================================================
   # SQS QUEUES - DEFINIRE PRIMA LA DLQ
   # ==================================================
@@ -25,8 +24,6 @@ Resources:
   # ==================================================
   # LAMBDA FUNCTIONS
   # ==================================================
-=======
->>>>>>> origin/main
   FilmRecommenderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -51,7 +48,6 @@ Resources:
             Path: /api/health
             Method: GET
 
-<<<<<<< HEAD
   FilmRecommenderQueueProcessor:
     Type: AWS::Serverless::Function
     Properties:
@@ -70,8 +66,6 @@ Resources:
         Variables:
           ECR_REPOSITORY: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender"
 
-=======
->>>>>>> origin/main
 Outputs:
   ApiUrl:
     Description: "API Gateway URL"

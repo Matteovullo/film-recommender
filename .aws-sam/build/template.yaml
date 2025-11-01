@@ -1,6 +1,23 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Transform: AWS::Serverless-2016-10-31
 Resources:
+  FilmRecommenderDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: film-recommender-dlq
+      MessageRetentionPeriod: 1209600
+  FilmRecommenderQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: film-recommender-queue
+      VisibilityTimeout: 300
+      MessageRetentionPeriod: 1209600
+      RedrivePolicy:
+        deadLetterTargetArn:
+          Fn::GetAtt:
+          - FilmRecommenderDLQ
+          - Arn
+        maxReceiveCount: 3
   FilmRecommenderFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -26,6 +43,29 @@ Resources:
             Method: GET
     Metadata:
       SamResourceId: FilmRecommenderFunction
+  FilmRecommenderQueueProcessor:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: film-recommender-queue-processor
+      Runtime: python3.9
+      Handler: queue_processor.lambda_handler
+      CodeUri: FilmRecommenderQueueProcessor
+      Timeout: 300
+      Events:
+        SQSEvent:
+          Type: SQS
+          Properties:
+            Queue:
+              Fn::GetAtt:
+              - FilmRecommenderQueue
+              - Arn
+            BatchSize: 5
+      Environment:
+        Variables:
+          ECR_REPOSITORY:
+            Fn::Sub: ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender
+    Metadata:
+      SamResourceId: FilmRecommenderQueueProcessor
 Outputs:
   ApiUrl:
     Description: API Gateway URL
