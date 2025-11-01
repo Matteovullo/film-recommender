@@ -1,6 +1,6 @@
-let charts = {};
+let charts = {}; // Contenitore per le istanze di Chart.js
 
-// IMPORTANTE: Usa endpoint FLASK locali
+// Risoluzione CONFLITTO - LASCIARE UNA SOLA RIGA PULITA
 let API_BASE_URL = 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod';
 
 async function loadAnalytics() {
@@ -9,6 +9,7 @@ async function loadAnalytics() {
     try {
         console.log('📊 Caricamento analytics...');
         
+        // Chiama l'endpoint proxy di Flask /api/analytics
         const response = await fetch('/api/analytics', {
             headers: {
                 'Accept': 'application/json'
@@ -23,7 +24,8 @@ async function loadAnalytics() {
         if (data.status === 'success') {
             displayRealData(data);
         } else {
-            displayNoData('Nessun dato analytics disponibile');
+            // Usa displayError se la risposta è success: false
+            displayError('Nessun dato analytics disponibile: ' + (data.error || 'Server error'));
         }
         
         updateLastUpdated();
@@ -38,7 +40,74 @@ function displayRealData(data) {
     updateDataStatus('Dati in tempo reale', 'status-real');
     displayStats(data.metrics);
     displayInsights(data.insights || []);
+    // CHIAMATA FONDAMENTALE: Disegna i grafici con i dati reali
+    drawCharts(data.metrics); 
 }
+
+// ===================================================
+// FUNZIONE PER DISEGNARE I GRAFICI (Chart.js)
+// ===================================================
+function drawCharts(metrics) {
+    const chartsContainer = document.getElementById('chartsContainer');
+    if (!chartsContainer) return;
+    
+    chartsContainer.style.display = 'grid';
+
+    // 1. GRAFICO DISTRIBUZIONE GENERI (Barre)
+    const genres = metrics.genre_distribution || {};
+    // Filtra 'unknown' o 'Error' dai generi visualizzati
+    const genreLabels = Object.keys(genres).filter(g => g !== 'unknown' && g !== 'Error');
+    const genreData = genreLabels.map(g => genres[g]);
+
+    const genreCtx = document.getElementById('genreChart');
+    // Distrugge l'istanza precedente per evitare sovrapposizioni
+    if (charts.genreChart) charts.genreChart.destroy(); 
+
+    charts.genreChart = new Chart(genreCtx, {
+        type: 'bar',
+        data: {
+            labels: genreLabels,
+            datasets: [{
+                label: 'Raccomandazioni per Genere',
+                data: genreData,
+                backgroundColor: ['#3498db', '#2ecc71', '#f1c40f', '#e74c3c', '#9b59b6', '#34495e'],
+                borderColor: ['#2980b9', '#27ae60', '#f39c12', '#c0392b', '#8e44ad', '#2c3e50'],
+                borderWidth: 1
+            }]
+        },
+        options: {
+            responsive: true,
+            scales: {
+                y: { beginAtZero: true }
+            }
+        }
+    });
+
+    // 2. GRAFICO TASSO DI SUCCESSO (Ciambella)
+    const successRate = metrics.success_rate || 0;
+    const rateCtx = document.getElementById('rateChart');
+    if (charts.rateChart) charts.rateChart.destroy(); 
+
+    charts.rateChart = new Chart(rateCtx, {
+        type: 'doughnut',
+        data: {
+            labels: ['Successo', 'Fallimento'],
+            datasets: [{
+                data: [successRate, 100 - successRate],
+                backgroundColor: ['#2ecc71', '#e74c3c'],
+                hoverOffset: 4
+            }]
+        },
+        options: {
+            responsive: true,
+            plugins: {
+                legend: { position: 'top' },
+                title: { display: false }
+            }
+        }
+    });
+}
+// ===================================================
 
 function displayStats(metrics) {
     const statsGrid = document.getElementById('statsGrid');
@@ -47,22 +116,18 @@ function displayStats(metrics) {
         <div class="stat-card">
             <div class="stat-number">${metrics.total_recommendations || 0}</div>
             <div class="stat-label">Raccomandazioni Totali</div>
-            <div class="stat-subtitle">⚡ ${metrics.architecture || 'Lambda'}</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">${metrics.unique_users || 1}</div>
+            <div class="stat-number">${metrics.unique_users || 0}</div>
             <div class="stat-label">Utenti Unici</div>
-            <div class="stat-subtitle">🔐 Cognito</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">${metrics.success_rate || 95}%</div>
+            <div class="stat-number">${metrics.success_rate || 0}%</div>
             <div class="stat-label">Tasso di Successo</div>
-            <div class="stat-subtitle">🚀 API Gateway</div>
         </div>
         <div class="stat-card">
-            <div class="stat-number">${metrics.avg_response_time || 0.8}s</div>
-            <div class="stat-label">Tempo Risposta</div>
-            <div class="stat-subtitle">💨 Performant</div>
+            <div class="stat-number">${(metrics.genre_distribution && Object.keys(metrics.genre_distribution).length > 0) ? Object.keys(metrics.genre_distribution).filter(g => g !== 'unknown' && g !== 'Error').length : 0}</div>
+            <div class="stat-label">Generi Monitorati</div>
         </div>
     `;
 }
@@ -94,6 +159,8 @@ function displayInsights(insights) {
 function showLoading() {
     document.getElementById('statsGrid').innerHTML = '<div class="loading">Caricamento dati in corso...</div>';
     updateDataStatus('Caricamento...', 'status-loading');
+    const chartsContainer = document.getElementById('chartsContainer');
+    if (chartsContainer) chartsContainer.style.display = 'none';
 }
 
 function updateDataStatus(text, className) {
@@ -122,6 +189,8 @@ function displayError(message) {
         </div>
     `;
     updateDataStatus('Errore di caricamento', 'status-error');
+    const chartsContainer = document.getElementById('chartsContainer');
+    if (chartsContainer) chartsContainer.style.display = 'none';
 }
 
 // Inizializzazione

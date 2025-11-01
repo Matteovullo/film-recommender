@@ -1,11 +1,10 @@
 let currentToken = localStorage.getItem('cognitoToken');
 let currentUser = localStorage.getItem('cognitoUser');
 
-// IMPORTANTE: Usa gli endpoint FLASK locali, non API Gateway diretto
+// Risoluzione CONFLITTO - LASCIARE UNA SOLA RIGA PULITA
 let API_BASE_URL = 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod';
 
 function showMessage(text, type = 'info') {
-    // Crea un messaggio visibile nell'UI
     const messageDiv = document.getElementById('message') || createMessageDiv();
     messageDiv.textContent = text;
     messageDiv.className = `message ${type}-message`;
@@ -25,6 +24,7 @@ function createMessageDiv() {
 }
 
 window.getRecommendations = async () => {
+    // ... (Logica del pulsante)
     const genre = document.getElementById('genre').value;
     if (!genre) {
         showMessage('Seleziona un genere', 'error');
@@ -33,18 +33,18 @@ window.getRecommendations = async () => {
 
     const recommendBtn = document.getElementById('recommendBtn');
     const originalText = recommendBtn.innerHTML;
-    recommendBtn.innerHTML = '🎬 Elaborazione...';
+    recommendBtn.innerHTML = '<span class="loading"></span> Elaborazione...';
     recommendBtn.disabled = true;
 
     try {
-        console.log('📡 Invio richiesta raccomandazioni per genere:', genre);
+        console.log('📡 Invio richiesta a /api/recommend...');
         
         // CHIAMA L'ENDPOINT FLASK LOCALE (/api/recommend)
         const response = await fetch('/api/recommend', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
-                'Accept': 'application/json'
+                'Authorization': `Bearer ${currentToken}` 
             },
             body: JSON.stringify({ 
                 preferences: { 
@@ -53,47 +53,40 @@ window.getRecommendations = async () => {
             })
         });
 
-        console.log('📨 Stato risposta:', response.status);
+        const data = await response.json();
 
         if (!response.ok) {
-            const errorText = await response.text();
-            console.error('❌ Errore HTTP:', response.status, errorText);
-            throw new Error(`Errore server: ${response.status}`);
+            throw new Error(data.error || `Errore HTTP ${response.status}`);
         }
 
-        const result = await response.json();
-        console.log('🎯 Risultato ricevuto:', result);
-
-        if (result.recommendations && result.recommendations.length > 0) {
-            document.getElementById('recommendationsList').innerHTML = 
-                result.recommendations.map(movie => `
-                    <div class="recommendation-item">
-                        <h4>🎭 ${movie}</h4>
-                        <p>Genere: ${genre}</p>
-                        <small>${result.architecture} • ${new Date().toLocaleTimeString()}</small>
-                    </div>
-                `).join('');
-            document.getElementById('results').style.display = 'block';
-            showMessage(`✅ Trovate ${result.recommendations.length} raccomandazioni!`, 'success');
+        let htmlList = '';
+        if (data.recommendations && data.recommendations.length > 0) {
+            htmlList = data.recommendations.map(movie => `
+                <div class="recommendation-item">
+                    <h4>🎭 ${movie}</h4>
+                    <p>Genere: ${data.genre || genre}</p>
+                    <small>Architettura: ${data.architecture}</small>
+                </div>
+            `).join('');
+            showMessage(`✅ Raccomandazioni trovate per ${data.genre || genre}!`, 'success');
         } else {
-            document.getElementById('recommendationsList').innerHTML = 
-                '<div class="recommendation-item">😔 Nessuna raccomandazione disponibile per questo genere</div>';
-            document.getElementById('results').style.display = 'block';
+            htmlList = '<p>Nessun film trovato con le tue preferenze.</p>';
             showMessage('Nessuna raccomandazione trovata', 'info');
         }
 
+        document.getElementById('recommendationsList').innerHTML = htmlList;
+        document.getElementById('results').style.display = 'block';
+
     } catch (err) {
-        console.error('❌ Errore completo:', err);
-        showMessage('❌ Errore: ' + err.message, 'error');
-        
-        // Fallback UI
+        console.error('❌ Errore in getRecommendations:', err);
         document.getElementById('recommendationsList').innerHTML = `
-            <div class="recommendation-item error">
-                <h4>⚠️ Errore di connessione</h4>
+            <div class="error-message">
+                <h4>Errore: Impossibile ottenere raccomandazioni</h4>
                 <p>${err.message}</p>
                 <small>Riprova più tardi</small>
             </div>`;
         document.getElementById('results').style.display = 'block';
+        showMessage('❌ Errore: ' + err.message, 'error');
     } finally {
         recommendBtn.innerHTML = originalText;
         recommendBtn.disabled = false;
@@ -116,12 +109,6 @@ document.addEventListener('DOMContentLoaded', function() {
     } else {
         console.log('✅ Utente autenticato:', currentUser);
         console.log('🌐 Ambiente pronto');
-        
-        // Aggiungi gestore eventi migliore al bottone
-        const recommendBtn = document.getElementById('recommendBtn');
-        if (recommendBtn) {
-            recommendBtn.addEventListener('click', getRecommendations);
-        }
     }
 });
 
@@ -131,5 +118,19 @@ style.textContent = `
     .success-message { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
     .error-message { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     .info-message { background: #d1ecf1; color: #0c5460; border: 1px solid #bee5eb; }
+    .loading {
+        display: inline-block;
+        width: 1em;
+        height: 1em;
+        border: 2px solid #fff;
+        border-radius: 50%;
+        border-top-color: transparent;
+        animation: spin 1s linear infinite;
+        vertical-align: middle;
+        margin-right: 5px;
+    }
+    @keyframes spin {
+        to { transform: rotate(360deg); }
+    }
 `;
 document.head.appendChild(style);
