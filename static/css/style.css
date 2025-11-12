@@ -1,19 +1,140 @@
+/* style-unified.css - UNIFICAZIONE STILI */
 * { margin: 0; padding: 0; box-sizing: border-box; }
-body { font-family: Arial, sans-serif; background: #f5f6fa; padding: 20px; }
-.container { max-width: 800px; margin: 0 auto; background: white; border-radius: 10px; padding: 30px; box-shadow: 0 2px 10px rgba(0,0,0,0.1); }
-.header { text-align: center; margin-bottom: 30px; }
-.header h1 { color: #2c3e50; margin-bottom: 10px; }
-.header p { color: #7f8c8d; }
-.btn { background: #3498db; color: white; border: none; padding: 12px 24px; border-radius: 6px; cursor: pointer; font-size: 16px; }
-.btn:hover { background: #2980b9; }
-.btn:disabled { background: #bdc3c7; cursor: not-allowed; }
-.form-control { width: 100%; padding: 12px; border: 1px solid #bdc3c7; border-radius: 6px; font-size: 16px; margin: 10px 0; }
-.recommendation-item { background: #ecf0f1; padding: 15px; margin: 10px 0; border-radius: 6px; border-left: 4px solid #3498db; }
-.success-message { background: #d4edda; color: #155724; padding: 15px; border-radius: 6px; margin: 10px 0; }
-.error-message { background: #f8d7da; color: #721c24; padding: 15px; border-radius: 6px; margin: 10px 0; }
 
-/* Messaggi */
-.message {
+/* Sfondo e Contenitore Globale */
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Sfondo da auth.css */
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 20px;
+}
+
+.container {
+    max-width: 500px; /* Ridotto per centrare l'attenzione */
+    width: 100%;
+    background: white;
+    border-radius: 15px; /* Angoli arrotondati da auth.css */
+    box-shadow: 0 20px 40px rgba(0,0,0,0.1);
+    overflow: hidden;
+}
+
+/* Header */
+.header {
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); /* Stile da auth.css */
+    color: white;
+    padding: 30px;
+    text-align: center;
+}
+
+.header h1 { margin-bottom: 5px; } /* Regolazione interna */
+.header p { color: #ecf0f1; } /* Sottotitolo */
+
+/* Contenuto principale */
+.content { padding: 40px; }
+
+
+/* Form e Input */
+.form-control { 
+    width: 100%; 
+    padding: 12px; 
+    border: 1px solid #bdc3c7; 
+    border-radius: 6px; 
+    font-size: 16px; 
+    margin: 10px 0; 
+}
+
+.auth-form { 
+    display: flex; 
+    flex-direction: column; 
+    gap: 15px; 
+    margin-top: 20px; 
+}
+
+/* Applica lo stile uniforme agli input sia di auth.html che app.html */
+.auth-form input, .form-control {
+    padding: 15px;
+    border: 2px solid #e0e0e0;
+    border-radius: 8px;
+    font-size: 16px;
+    width: 100%;
+    transition: border-color 0.3s ease;
+}
+
+.auth-form input:focus, .form-control:focus {
+    border-color: #3498db;
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.1);
+}
+
+.form-group {
+    margin-bottom: 15px;
+}
+
+.form-group label {
+    display: block;
+    margin-bottom: 5px;
+    font-weight: bold;
+    color: #34495e;
+}
+
+
+/* Bottoni */
+.btn {
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    color: white;
+    border: none;
+    padding: 15px;
+    border-radius: 8px;
+    cursor: pointer;
+    font-weight: bold;
+    font-size: 16px;
+    width: 100%;
+    margin-top: 10px;
+    transition: all 0.3s ease;
+}
+
+.btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+}
+
+.btn:disabled { background: #bdc3c7; cursor: not-allowed; }
+
+.btn-secondary {
+    background: linear-gradient(135deg, #95a5a6 0%, #7f8c8d 100%);
+}
+
+.btn-secondary:hover {
+    background: linear-gradient(135deg, #7f8c8d 0%, #6c7b7d 100%);
+}
+
+.btn-group {
+    display: flex;
+    gap: 10px;
+    margin-top: 15px;
+}
+
+.btn-group .btn {
+    flex: 1;
+    margin-top: 0;
+}
+
+/* Messaggi interni alla pagina (usati in index.html) */
+.message { 
+    padding: 15px; 
+    border-radius: 8px; 
+    margin: 20px 0; 
+    display: none; 
+    text-align: center;
+    font-weight: 600;
+    color: white;
+}
+
+/* Messaggi a comparsa (usati in app.js - sovrascrive lo stile base per la posizione) */
+#message {
     position: fixed;
     top: 20px;
     right: 20px;
@@ -23,46 +144,109 @@ body { font-family: Arial, sans-serif; background: #f5f6fa; padding: 20px; }
     z-index: 1000;
     max-width: 400px;
     box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+    display: none; 
 }
 
-.success-message { 
-    background: #d4edda; 
-    color: #155724; 
-    border: 1px solid #c3e6cb; 
+.message.success-message, .success { 
+    background: #27ae60; 
+    border: 1px solid #1e8449; 
+    color: white;
 }
 
-.error-message { 
-    background: #f8d7da; 
-    color: #721c24; 
-    border: 1px solid #f5c6cb; 
+.message.error-message, .error { 
+    background: #e74c3c; 
+    border: 1px solid #c0392b; 
+    color: white;
 }
 
-.info-message { 
+.message.info-message, .info { 
+    background: #3498db; 
+    border: 1px solid #2980b9; 
+    color: white;
+}
+
+/* Sezione Verifica (Login Page) */
+.verification-section {
+    background: #f8f9fa;
+    padding: 25px;
+    border-radius: 10px;
+    margin-top: 25px;
+    border-left: 4px solid #3498db;
+    display: none;
+}
+
+.verification-section h4 {
+    color: #2c3e50;
+    margin-bottom: 10px;
+    text-align: center;
+}
+
+.verification-section p {
+    color: #7f8c8d;
+    text-align: center;
+    margin-bottom: 20px;
+}
+
+.welcome-text {
+    text-align: center;
+    margin-bottom: 30px;
+    color: #2c3e50;
+}
+
+/* Loading Spinner */
+.loading {
+    display: inline-block;
+    width: 1em;
+    height: 1em;
+    border: 2px solid #fff;
+    border-radius: 50%;
+    border-top-color: transparent;
+    animation: spin 1s linear infinite;
+    vertical-align: middle;
+    margin-right: 5px;
+}
+@keyframes spin {
+    to { transform: rotate(360deg); }
+}
+
+/* Sezione Risultati (App Page) */
+.results-section h3 {
+    margin-bottom: 20px;
+    color: #2c3e50;
+    border-bottom: 1px solid #ecf0f1;
+    padding-bottom: 10px;
+}
+
+/* Card informativa per richiesta asincrona */
+.info-message {
     background: #d1ecf1; 
     color: #0c5460; 
-    border: 1px solid #bee5eb; 
-}
-
-/* Error card per dashboard */
-.error-card {
-    background: #f8d7da;
-    color: #721c24;
+    border: 1px solid #bee5eb;
     padding: 20px;
     border-radius: 8px;
     text-align: center;
-    border-left: 4px solid #dc3545;
 }
+.info-message h4 { margin-bottom: 10px; color: #0c5460; }
+.info-message p { margin-bottom: 5px; }
+.info-message small { display: block; margin-top: 10px; color: #7f8c8d; }
 
-.btn-retry {
-    background: #dc3545;
-    color: white;
-    border: none;
-    padding: 8px 16px;
-    border-radius: 4px;
-    cursor: pointer;
-    margin-top: 10px;
-}
 
-.btn-retry:hover {
-    background: #c82333;
+/* Media Query per Responsiveness */
+@media (max-width: 480px) {
+    .container {
+        margin: 10px;
+        border-radius: 10px;
+    }
+    
+    .content {
+        padding: 25px;
+    }
+    
+    .header {
+        padding: 25px 20px;
+    }
+    
+    .btn-group {
+        flex-direction: column;
+    }
 }

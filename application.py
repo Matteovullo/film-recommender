@@ -15,7 +15,6 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('gunicorn.error')
 
 # URL API Gateway - letto dalle variabili d'ambiente di Elastic Beanstalk
-# Questo è l'endpoint che Flask chiamerà per contattare la Lambda
 API_BASE_URL = os.environ.get('API_GATEWAY_URL', 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod')
 
 # Inizializzazione Boto3 (necessaria per il fallback e worker)
@@ -48,7 +47,7 @@ def app_page():
 def dashboard():
     return render_template('analytics_dashboard.html')
 
-# Endpoint per ottenere raccomandazioni - CHIAMATA DIRETTA A LAMBDA (Proxy)
+# Endpoint per ottenere raccomandazioni - CHIAMATA DIRETTA A LAMBDA (Proxy Sincrono)
 @app.route('/api/recommend', methods=['POST'])
 def get_recommendations():
     try:
@@ -91,6 +90,75 @@ def get_recommendations():
     except Exception as e:
         logger.error(f"💥 Errore interno: {e}")
         return jsonify({'error': 'Errore interno del server'}), 500
+
+# NUOVO ENDPOINT: Proxy per l'invio ASINCRONO (via SQS)
+@app.route('/api/recommend/async', methods=['POST'])
+def post_async_recommendations():
+    try:
+        logger.info("📨 Ricevuta richiesta raccomandazioni ASINCRONE")
+        
+        data = request.json
+        if not data or 'preferences' not in data:
+            return jsonify({'error': 'Dati preferences mancanti'}), 400
+        
+        # CHIAMATA all'API Gateway Lambda all'endpoint asincrono
+        logger.info(f"🔗 Chiamando Lambda Asincrona: {API_BASE_URL}/api/recommend/async")
+        
+        response = requests.post(
+            f'{API_BASE_URL}/api/recommend/async',
+            headers={
+                'Content-Type': 'application/json'
+            },
+            json=data,
+            timeout=10
+        )
+        
+        logger.info(f"📨 Risposta Lambda Asincrona: {response.status_code}")
+        
+        # La risposta attesa è 202 (Accepted)
+        if response.status_code == 202:
+            result = response.json()
+            return jsonify(result), 202
+        else:
+            # Gestione errore
+            logger.error(f"❌ Errore Lambda Asincrona: {response.status_code} - {response.text}")
+            # Ritorna l'errore o il fallback
+            return jsonify(response.json()), response.status_code
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"🔌 Errore connessione Lambda Asincrona: {e}")
+        return jsonify({'error': 'Errore di connessione al servizio di coda'}), 500
+    except Exception as e:
+        logger.error(f"💥 Errore interno Asincrono: {e}")
+        return jsonify({'error': 'Errore interno del server'}), 500
+
+# NUOVO ENDPOINT DI POLLING: Proxy per ottenere lo stato e il risultato
+@app.route('/api/recommend/status/<request_id>', methods=['GET'])
+def get_recommendation_status(request_id):
+    try:
+        logger.info(f"📊 Ricevuta richiesta di stato per ID: {request_id}")
+        
+        # CHIAMATA al nuovo endpoint di status della Lambda
+        response = requests.get(
+            f'{API_BASE_URL}/api/recommend/status/{request_id}',
+            headers={
+                'Content-Type': 'application/json'
+            },
+            timeout=5
+        )
+        
+        # La Lambda restituisce 200 se completo, 202 se in corso.
+        if response.status_code == 200 or response.status_code == 202:
+            return jsonify(response.json()), response.status_code
+        else:
+            logger.error(f"❌ Errore Polling: {response.status_code} - {response.text}")
+            # Ritorna lo stato di elaborazione se c'è un errore temporaneo nel proxy
+            return jsonify({'status': 'processing', 'message': 'Elaborazione in corso o ID non trovato.'}), 202
+            
+    except requests.exceptions.RequestException as e:
+        logger.error(f"🔌 Errore connessione Polling: {e}")
+        return jsonify({'status': 'processing', 'message': 'Connessione temporaneamente non disponibile.'}), 202
+
 
 # Fallback per raccomandazioni locali
 def get_fallback_recommendations(data):

@@ -13,7 +13,7 @@ def lambda_handler(event, context):
     """
     Processa i messaggi dalla coda SQS per raccomandazioni
     """
-    logger.info(f"�� Processing {len(event['Records'])} recommendation requests")
+    logger.info(f" Processing {len(event['Records'])} recommendation requests")
     
     successful_messages = 0
     failed_messages = 0
@@ -53,31 +53,31 @@ def process_recommendation(message_data):
     preferences = message_data.get('preferences', {})
     genre = preferences.get('genre', '').lower()
     
-    # Database film per raccomandazioni
+    # Database film per raccomandazioni (Risultati puliti qui)
     movies_database = {
         "sci-fi": [
-            "Blade Runner 2049 (SQS Processed)",
-            "The Matrix (SQS Processed)", 
-            "Dune (SQS Processed)"
+            "Blade Runner 2049",
+            "The Matrix", 
+            "Dune"
         ],
         "fantasy": [
-            "Lord of the Rings (SQS Processed)",
-            "Harry Potter (SQS Processed)",
-            "Pan's Labyrinth (SQS Processed)"
+            "Lord of the Rings",
+            "Harry Potter",
+            "Pan's Labyrinth"
         ],
         "dystopian": [
-            "Children of Men (SQS Processed)",
-            "Snowpiercer (SQS Processed)", 
-            "Mad Max (SQS Processed)"
+            "Children of Men",
+            "Snowpiercer", 
+            "Mad Max"
         ],
         "thriller": [
-            "Parasite (SQS Processed)",
-            "Inception (SQS Processed)",
-            "The Dark Knight (SQS Processed)"
+            "Parasite",
+            "Inception",
+            "The Dark Knight"
         ],
         "action": [
-            "John Wick (SQS Processed)",
-            "Mad Max: Fury Road (SQS Processed)"
+            "John Wick",
+            "Mad Max: Fury Road"
         ]
     }
     
@@ -85,7 +85,7 @@ def process_recommendation(message_data):
     if genre in movies_database:
         recommendations = movies_database[genre]
     else:
-        recommendations = ["Film consigliato 1 (SQS)", "Film consigliato 2 (SQS)"]
+        recommendations = ["Film consigliato 1", "Film consigliato 2"]
     
     return {
         'recommendations': recommendations[:3],  # Massimo 3 film
@@ -99,7 +99,7 @@ def save_recommendation_analytics(message_data, result):
     Salva i dati delle raccomandazioni per analytics
     """
     try:
-        table = dynamodb.Table('FilmRecommender-Analytics')
+        table = dynamodb.Table('FilmRecommender-Analytics-v2') # <--- NUOVA TABELLA
         
         analytics_record = {
             'eventId': str(uuid.uuid4()),
@@ -111,6 +111,9 @@ def save_recommendation_analytics(message_data, result):
             'ttl': int(datetime.now().timestamp()) + 2592000  # 30 giorni
         }
         
+        # Aggiungiamo il RequestId per permettere la ricerca tramite Polling
+        analytics_record['requestId'] = message_data.get('requestId', 'unknown') 
+
         table.put_item(Item=analytics_record)
         logger.info(f"📊 Analytics saved: {analytics_record['eventId']}")
         

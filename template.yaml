@@ -3,22 +3,39 @@ Transform: AWS::Serverless-2016-10-31
 
 Resources:
   # ==================================================
-  # SQS QUEUES - DEFINIRE PRIMA LA DLQ
+  # DYNAMODB TABLE DEFINITION
+  # ==================================================
+  FilmRecommenderAnalyticsTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: FilmRecommender-Analytics-v2 # NOME AGGIORNATO PER RISOLVERE CONFLITTI
+      AttributeDefinitions:
+        - AttributeName: eventId
+          AttributeType: S
+      KeySchema:
+        - AttributeName: eventId
+          KeyType: HASH
+      ProvisionedThroughput:
+        ReadCapacityUnits: 5
+        WriteCapacityUnits: 5
+
+  # ==================================================
+  # SQS QUEUES 
   # ==================================================
   FilmRecommenderDLQ:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: "film-recommender-dlq"
+      QueueName: "film-recommender-v2-dlq"
       MessageRetentionPeriod: 1209600
 
   FilmRecommenderQueue:
     Type: AWS::SQS::Queue
     Properties:
-      QueueName: "film-recommender-queue"
+      QueueName: "film-recommender-v2-queue"
       VisibilityTimeout: 300
       MessageRetentionPeriod: 1209600
       RedrivePolicy:
-        deadLetterTargetArn: !GetAtt FilmRecommenderDLQ.Arn  # CORRETTO: !GetAtt
+        deadLetterTargetArn: !GetAtt FilmRecommenderDLQ.Arn
         maxReceiveCount: 3
 
   # ==================================================
@@ -31,12 +48,36 @@ Resources:
       Handler: lambda_function.lambda_handler
       Runtime: python3.9
       Timeout: 30
+      # Permessi SQS (per SendMessage)
+      Policies:
+        - SQSSendMessagePolicy:
+            QueueName: !Ref FilmRecommenderQueue 
+        # Permessi per LEGGERE (Scan) DYNAMODB dalla Lambda di Polling
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:Scan
+            Resource: !GetAtt FilmRecommenderAnalyticsTable.Arn
+
+      Environment:
+        Variables:
+          RECOMMENDER_QUEUE_URL: !Ref FilmRecommenderQueue
       Events:
         RecommendApi:
           Type: Api
           Properties:
             Path: /api/recommend
             Method: POST
+        AsyncRecommendApi:
+          Type: Api
+          Properties:
+            Path: /api/recommend/async
+            Method: POST
+        StatusApi: # Risorsa Polling
+          Type: Api
+          Properties:
+            Path: /api/recommend/status/{requestId}
+            Method: GET
         AnalyticsApi:
           Type: Api
           Properties:
@@ -56,11 +97,23 @@ Resources:
       Handler: queue_processor.lambda_handler
       CodeUri: lambda/src/
       Timeout: 300
+      # CORREZIONE CRITICA IAM per il Processore
+      Policies:
+        # 1. PERMESSI OBBLIGATORI PER LEGGERE DA SQS (SQS Poller)
+        - SQSPollerPolicy:
+            QueueName: !Ref FilmRecommenderQueue
+        # 2. PERMESSI PER SCRIVERE (PutItem) DYNAMODB
+        - Statement:
+            Effect: Allow
+            Action:
+              - dynamodb:PutItem
+            Resource: !GetAtt FilmRecommenderAnalyticsTable.Arn
+
       Events:
         SQSEvent:
           Type: SQS
           Properties:
-            Queue: !GetAtt FilmRecommenderQueue.Arn  # CORRETTO: !GetAtt
+            Queue: !GetAtt FilmRecommenderQueue.Arn
             BatchSize: 5
       Environment:
         Variables:

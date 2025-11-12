@@ -23,8 +23,71 @@ function createMessageDiv() {
     return div;
 }
 
+const POLLING_INTERVAL = 3000; // 3 secondi per il polling
+
+async function startPolling(requestId, genre, recommendBtn, originalText) {
+    const listDiv = document.getElementById('recommendationsList');
+    
+    listDiv.innerHTML = `
+        <div class="info-message">
+            <h4>Elaborazione in Corso...</h4>
+            <p>La tua richiesta per **${genre}** è in coda SQS.</p>
+            <p>Attendere il completamento del calcolo (ID: ${requestId}).</p>
+            <small>Verifica stato ogni ${POLLING_INTERVAL / 1000} secondi.</small>
+        </div>`;
+    document.getElementById('results').style.display = 'block';
+
+    const poll = setInterval(async () => {
+        try {
+            console.log(`⏱️ Polling stato per ID: ${requestId}`);
+            
+            // Chiamata all'endpoint proxy di polling
+            const statusResponse = await fetch(`/api/recommend/status/${requestId}`, {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${currentToken}` 
+                }
+            });
+            const statusData = await statusResponse.json();
+
+            // Il backend risponde 200 se i dati sono pronti (status: 'complete')
+            if (statusResponse.status === 200 && statusData.status === 'complete') {
+                
+                clearInterval(poll);
+                recommendBtn.innerHTML = originalText;
+                recommendBtn.disabled = false;
+                showMessage(`✅ Risultati per ${statusData.genre || genre} ricevuti!`, 'success');
+                
+                // Visualizza i risultati
+                const htmlList = statusData.recommendations.map(movie => `
+                    <div class="recommendation-item">
+                        <h4>🎭 ${movie}</h4>
+                        <p>Genere: ${statusData.genre || genre}</p>
+                    </div>
+                `).join('');
+                listDiv.innerHTML = htmlList;
+
+            } else if (statusResponse.status !== 202) {
+                // Errore inaspettato o status non 'processing'
+                clearInterval(poll);
+                recommendBtn.innerHTML = originalText;
+                recommendBtn.disabled = false;
+                throw new Error(statusData.error || statusData.message || 'Errore di polling inatteso.');
+            }
+            // Altrimenti, continua il polling (status 202 processing)
+
+        } catch (err) {
+            clearInterval(poll);
+            recommendBtn.innerHTML = originalText;
+            recommendBtn.disabled = false;
+            console.error('❌ Errore Polling:', err);
+            showMessage('❌ Polling fallito: ' + err.message, 'error');
+            listDiv.innerHTML = `<div class="error-message">Errore Polling: ${err.message}</div>`;
+        }
+    }, POLLING_INTERVAL);
+}
+
 window.getRecommendations = async () => {
-    // ... (Logica del pulsante)
     const genre = document.getElementById('genre').value;
     if (!genre) {
         showMessage('Seleziona un genere', 'error');
@@ -33,14 +96,14 @@ window.getRecommendations = async () => {
 
     const recommendBtn = document.getElementById('recommendBtn');
     const originalText = recommendBtn.innerHTML;
-    recommendBtn.innerHTML = '<span class="loading"></span> Elaborazione...';
+    recommendBtn.innerHTML = '<span class="loading"></span> Accodamento e Avvio Polling...';
     recommendBtn.disabled = true;
 
     try {
-        console.log('📡 Invio richiesta a /api/recommend...');
+        console.log('📡 Invio richiesta ASINCRONA a /api/recommend/async...');
         
-        // CHIAMA L'ENDPOINT FLASK LOCALE (/api/recommend)
-        const response = await fetch('/api/recommend', {
+        // 1. CHIAMATA ASINCRONA INIZIALE (Ricevi 202 Accepted)
+        const response = await fetch('/api/recommend/async', {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json',
@@ -48,46 +111,30 @@ window.getRecommendations = async () => {
             },
             body: JSON.stringify({ 
                 preferences: { 
-                    genre: genre 
+                    genre: genre,
+                    userId: currentUser 
                 } 
             })
         });
 
         const data = await response.json();
 
-        if (!response.ok) {
+        if (response.status === 202) {
+            // 2. INIZIA IL POLLING
+            showMessage(`🚀 Richiesta per ${genre} accodata! Avvio monitoraggio...`, 'info');
+            const requestId = data.requestId;
+            
+            // Avvia la funzione di polling con i dati necessari
+            startPolling(requestId, genre, recommendBtn, originalText);
+            
+        } else if (!response.ok) {
             throw new Error(data.error || `Errore HTTP ${response.status}`);
         }
 
-        let htmlList = '';
-        if (data.recommendations && data.recommendations.length > 0) {
-            htmlList = data.recommendations.map(movie => `
-                <div class="recommendation-item">
-                    <h4>🎭 ${movie}</h4>
-                    <p>Genere: ${data.genre || genre}</p>
-                    <small>Architettura: ${data.architecture}</small>
-                </div>
-            `).join('');
-            showMessage(`✅ Raccomandazioni trovate per ${data.genre || genre}!`, 'success');
-        } else {
-            htmlList = '<p>Nessun film trovato con le tue preferenze.</p>';
-            showMessage('Nessuna raccomandazione trovata', 'info');
-        }
-
-        document.getElementById('recommendationsList').innerHTML = htmlList;
-        document.getElementById('results').style.display = 'block';
-
     } catch (err) {
+        // Gestione errore iniziale
         console.error('❌ Errore in getRecommendations:', err);
-        document.getElementById('recommendationsList').innerHTML = `
-            <div class="error-message">
-                <h4>Errore: Impossibile ottenere raccomandazioni</h4>
-                <p>${err.message}</p>
-                <small>Riprova più tardi</small>
-            </div>`;
-        document.getElementById('results').style.display = 'block';
         showMessage('❌ Errore: ' + err.message, 'error');
-    } finally {
         recommendBtn.innerHTML = originalText;
         recommendBtn.disabled = false;
     }
@@ -103,12 +150,21 @@ window.signOut = function() {
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Controllo autenticazione...');
     
-    if (!currentToken || !currentUser) {
+    const savedToken = localStorage.getItem('cognitoToken');
+    const savedUser = localStorage.getItem('cognitoUser');
+    
+    if (!savedToken || !savedUser) {
         console.log('❌ Utente non autenticato, redirect a login');
         window.location.href = '/';
     } else {
-        console.log('✅ Utente autenticato:', currentUser);
+        console.log('✅ Utente autenticato:', savedUser);
         console.log('🌐 Ambiente pronto');
+        
+        // MOSTRA L'EMAIL DELL'UTENTE NELL'HEADER:
+        const userNameDisplay = document.getElementById('userNameDisplay');
+        if (userNameDisplay) {
+             userNameDisplay.textContent = `Benvenuto, ${savedUser}!`;
+        }
     }
 });
 

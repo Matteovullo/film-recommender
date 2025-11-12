@@ -5,11 +5,48 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Film Recommender</title>
     <link rel="stylesheet" href="/static/css/style.css">
+    <style>
+        .recommendation-item {
+            border: 1px solid #ccc; /* Bordo sottile */
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 6px;
+            background-color: #f9f9f9; /* Sfondo leggero */
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+        }
+        .user-header {
+            position: fixed;
+            top: 0;
+            right: 0;
+            padding: 10px 20px;
+            background: #2c3e50; 
+            color: #ecf0f1;
+            font-size: 0.9em;
+            z-index: 1000;
+            border-bottom-left-radius: 8px;
+        }
+        .user-header button {
+            background: none;
+            border: none;
+            color: #f1c40f; 
+            cursor: pointer;
+            text-decoration: underline;
+            margin-left: 10px;
+            font-size: 0.9em;
+        }
+    </style>
 </head>
 <body>
+    
+    <div class="user-header">
+        <span id="userNameDisplay">Caricamento...</span>
+        <button onclick="signOut()">Esci</button>
+    </div>
+
     <div class="container">
         <div class="header">
             <h1>🎬 Film Recommender</h1>
+            <p>Ottieni consigli personalizzati sui film</p>
         </div>
 
         <div class="content">
@@ -30,7 +67,7 @@
                     Ottieni Raccomandazioni
                 </button>
             </div>
-
+            
             <div class="results-section" id="results" style="display:none;">
                 <h3>🎭 Film Consigliati per Te</h3>
                 <div id="recommendationsList"></div>
