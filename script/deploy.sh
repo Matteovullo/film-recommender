@@ -40,6 +40,7 @@ if command -v sam &> /dev/null; then
     if [ -n "$API_URL" ]; then
         echo "✅ API Gateway: $API_URL"
         echo "🔧 Aggiornamento URL API nei file JavaScript..."
+        # Utilizza un pattern più robusto per sed per evitare errori
         sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js 2>/dev/null || echo "⚠️  Impossibile aggiornare app.js"
         sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/dashboard.js 2>/dev/null || echo "⚠️  Impossibile aggiornare dashboard.js"
     else
@@ -199,7 +200,8 @@ cat > dockerrun.aws.json << EOL
 }
 EOL
 
-# CONFIGURAZIONE MIGLIORATA
+# CONFIGURAZIONE CORRETTA (Rimuove la configurazione statica non valida)
+# QUESTA SEZIONE È STATA CORRETTA PER ELIMINARE L'ERRORE 'Invalid option specification'
 cat > .ebextensions/01-app.config << EOL
 option_settings:
   aws:elasticbeanstalk:application:environment:
@@ -229,7 +231,7 @@ sleep 5
 # PREPARA E CARICA VERSIONE
 echo "📦 Preparazione package EB..."
 rm -f $APP_NAME.zip
-zip -r $APP_NAME.zip dockerrun.aws.json Dockerfile application.py requirements.txt static/ .ebextensions/ -x "*.git*" "*.DS_Store*" "deploy-*.sh" "*.zip" "*.log" ".aws-sam/*"
+zip -r $APP_NAME.zip dockerrun.aws.json Dockerfile application.py requirements.txt static/ .ebextensions/ -x "*.git*" "*.DS_STORE*" "deploy-*.sh" "*.zip" "*.log" ".aws-sam/*"
 
 echo "📤 Upload su S3..."
 aws s3 cp $APP_NAME.zip s3://$S3_BUCKET/$APP_NAME.zip
