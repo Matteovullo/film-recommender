@@ -79,7 +79,6 @@ Resources:
     Type: AWS::CodePipeline::Pipeline
     Properties:
       Name: film-recommender-pipeline
-      # CORREZIONE: Usa !GetAtt per ottenere l'ARN completo
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3

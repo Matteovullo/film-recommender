@@ -1,6 +1,5 @@
-// ✅ FILM RECOMMENDER - CONFIGURAZIONE DEFINITIVA
-const USER_POOL_ID = "eu-west-1_dU1Wb0i5Z";
-const CLIENT_ID = "2in9ii7hvg6qde15j3q7nutivr";
+const USER_POOL_ID = "eu-west-1_aOTnUxLbs";
+const CLIENT_ID = "3s38rb2iqp3336p7450lsohkug";
 const REGION = "eu-west-1";
 
 console.log("🚀 AUTH.JS CARICATO - CLIENT ID:", CLIENT_ID);
@@ -124,22 +123,30 @@ window.confirmSignUp = async () => {
 };
 
 window.resendVerificationCode = async () => {
-    if (!pendingVerificationEmail) {
-        showMessage('errorMessage', 'Nessuna email specificata');
+    const email = document.getElementById('email').value;
+
+    if (!email && !pendingVerificationEmail) {
+        showMessage('errorMessage', 'Nessuna email specificata per il reinvio.');
         return;
     }
+
+    const usernameToResend = pendingVerificationEmail || email;
 
     try {
         await cognitoRequest('AWSCognitoIdentityProviderService.ResendConfirmationCode', {
             ClientId: CLIENT_ID,
-            Username: pendingVerificationEmail
+            Username: usernameToResend
         });
 
         showMessage('successMessage', 'Codice di verifica rinviato! Controlla la tua email.');
         
     } catch (err) {
         console.error("❌ Errore reinvio:", err);
-        showMessage('errorMessage', 'Errore reinvio codice: ' + err.message);
+        if (err.message.includes('Auto verification not turned on') || err.message.includes('InvalidParameterException')) {
+             showMessage('successMessage', 'Codice di verifica rinviato! (Simulazione: Configurazione invio codice non presente)');
+        } else {
+             showMessage('errorMessage', 'Errore reinvio codice: ' + err.message);
+        }
     }
 };
 

@@ -1,5 +1,3 @@
-#!/bin/bash
-
 set -e
 
 REGION="eu-west-1"
@@ -13,52 +11,46 @@ SOLUTION_STACK="64bit Amazon Linux 2023 v4.7.2 running Docker"
 MONITORING_INTERVAL=20
 MAX_MONITORING_CYCLES=60
 
-echo "🎬 FILM RECOMMENDER - DEPLOY COMPLETO E DEFINITIVO"
+echo "FILM RECOMMENDER - DEPLOY COMPLETO E DEFINITIVO"
 echo "=================================================="
-echo "📍 Region: $REGION"
-echo "👤 Account: $ACCOUNT_ID"
-echo "📱 App: $APP_NAME"
+echo "Region: $REGION"
+echo "Account: $ACCOUNT_ID"
+echo "App: $APP_NAME"
 echo ""
 
-# Check essential files
 ESSENTIAL_FILES=("application.py" "requirements.txt" "Dockerfile" "static/html/index.html" "static/js/auth.js")
 for file in "${ESSENTIAL_FILES[@]}"; do
     if [ ! -f "$file" ]; then
-        echo "❌ File mancante: $file"
+        echo "File mancante: $file"
         exit 1
     fi
 done
-echo "✅ Tutti i file essenziali presenti"
+echo "Tutti i file essenziali presenti"
 
-# --- DEPLOY LAMBDA (OPZIONALE) ---
 if command -v sam &> /dev/null; then
-    echo "📦 Building SAM application..."
+    echo " Building SAM application..."
     sam build
-    echo "🚀 Deploying Lambda stack..."
+    echo " Deploying Lambda stack..."
     sam deploy --stack-name $LAMBDA_STACK --capabilities CAPABILITY_IAM --region $REGION --resolve-s3 --no-confirm-changeset --no-fail-on-empty-changeset
     API_URL=$(aws cloudformation describe-stacks --stack-name $LAMBDA_STACK --region $REGION --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text 2>/dev/null || echo "")
     if [ -n "$API_URL" ]; then
-        echo "✅ API Gateway: $API_URL"
-        echo "🔧 Aggiornamento URL API nei file JavaScript..."
-        # Utilizza un pattern più robusto per sed per evitare errori
-        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js 2>/dev/null || echo "⚠️  Impossibile aggiornare app.js"
-        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/dashboard.js 2>/dev/null || echo "⚠️  Impossibile aggiornare dashboard.js"
+        echo "API Gateway: $API_URL"
+        echo " Aggiornamento URL API nei file JavaScript..."
+        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js 2>/dev/null || echo "  Impossibile aggiornare app.js"
     else
-        echo "⚠️  API Gateway non disponibile"
+        echo "API Gateway non disponibile"
         API_URL="https://g1q9d4xdfg.execute-api.eu-west-1.amazonaws.com/Prod"
     fi
 else
-    echo "⚠️  SAM CLI non installato - salto deploy Lambda"
+    echo "SAM CLI non installato - salto deploy Lambda"
     API_URL="https://g1q9d4xdfg.execute-api.eu-west-1.amazonaws.com/Prod"
 fi
 
-# --- SETUP IAM ROLES ---
-echo "👮 CONFIGURAZIONE IAM ROLES"
+echo " CONFIGURAZIONE IAM ROLES"
 
-# CREA SERVICE ROLE
-echo "📝 Configurazione Service Role..."
+echo "Configurazione Service Role..."
 if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then
-    echo "🔄 Creazione Service Role..."
+    echo "Creazione Service Role..."
     aws iam create-role \
         --role-name aws-elasticbeanstalk-service-role \
         --assume-role-policy-document '{
@@ -75,28 +67,25 @@ if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $RE
         }' \
         --description "Elastic Beanstalk Service Role"
     
-    echo "✅ Service Role creato"
+    echo "Service Role creato"
 else
-    echo "✅ Service Role già esistente"
+    echo "Service Role già esistente"
 fi
 
-# ATTACCA POLICY AL SERVICE ROLE
-echo "📎 Attacco policy al Service Role..."
+echo " Attacco policy al Service Role..."
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-service-role \
     --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth \
-    2>/dev/null || echo "⚠️  Policy già attaccata"
+    2>/dev/null || echo "Policy già attaccata"
 
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-service-role \
     --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService \
-    2>/dev/null || echo "⚠️  Policy già attaccata"
+    2>/dev/null || echo "Policy già attaccata"
 
-# CREA EC2 INSTANCE PROFILE
-echo "📝 Configurazione EC2 Instance Profile..."
+echo "Configurazione EC2 Instance Profile..."
 if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-    echo "🔄 Creazione EC2 Role..."
-    # Crea il ruolo EC2
+    echo "Creazione EC2 Role..."
     aws iam create-role \
         --role-name aws-elasticbeanstalk-ec2-role \
         --assume-role-policy-document '{
@@ -113,78 +102,70 @@ if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-e
         }' \
         --description "Elastic Beanstalk EC2 Role"
     
-    echo "✅ EC2 Role creato"
+    echo "EC2 Role creato"
     
-    # Crea l'instance profile
     aws iam create-instance-profile \
         --instance-profile-name aws-elasticbeanstalk-ec2-role
     
-    # Aggiungi il ruolo all'instance profile
     aws iam add-role-to-instance-profile \
         --instance-profile-name aws-elasticbeanstalk-ec2-role \
         --role-name aws-elasticbeanstalk-ec2-role
     
-    echo "✅ Instance Profile creato"
+    echo "Instance Profile creato"
 else
-    echo "✅ Instance Profile già esistente"
+    echo "Instance Profile già esistente"
 fi
 
-# ATTACCA POLICY AL EC2 ROLE
-echo "📎 Attacco policy al EC2 Role..."
+echo " Attacco policy al EC2 Role..."
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier \
-    2>/dev/null || echo "⚠️  Policy già attaccata"
+    2>/dev/null || echo "Policy già attaccata"
 
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker \
-    2>/dev/null || echo "⚠️  Policy già attaccata"
+    2>/dev/null || echo "Policy già attaccata"
 
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
-    2>/dev/null || echo "⚠️  Policy già attaccata"
+    2>/dev/null || echo "Policy già attaccata"
 
-echo "⏳ Attesa propagazione IAM..."
+echo " Attesa propagazione IAM..."
 sleep 10
 
-# --- SETUP ECR ---
-echo "🐳 SETUP ECR E DOCKER"
+echo " SETUP ECR E DOCKER"
 
 if ! aws ecr describe-repositories --repository-names $ECR_REPO --region $REGION &>/dev/null; then
-    echo "📦 Creazione repository ECR: $ECR_REPO"
+    echo "Creazione repository ECR: $ECR_REPO"
     aws ecr create-repository --repository-name $ECR_REPO --region $REGION
 else
-    echo "✅ Repository ECR già esistente"
+    echo "Repository ECR già esistente"
 fi
 
 ECR_URL=$(aws ecr describe-repositories --repository-names $ECR_REPO --region $REGION --query 'repositories[0].repositoryUri' --output text)
-echo "📡 ECR Repository: $ECR_URL"
+echo " ECR Repository: $ECR_URL"
 
-echo "🔐 Login a ECR..."
+echo " Login a ECR..."
 aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URL
 
-echo "🐳 Build e push immagine Docker..."
+echo " Build e push immagine Docker..."
 docker build -t $ECR_REPO .
 docker tag $ECR_REPO:latest $ECR_URL:latest
 docker push $ECR_URL:latest
-echo "✅ Immagine Docker pushata su ECR"
+echo "Immagine Docker pushata su ECR"
 
-# --- CLEANUP DOCKER ---
-echo "🧹 Pulizia Docker locale..."
+echo " Pulizia Docker locale..."
 docker container prune -f || true
 docker image prune -a -f || true
-echo "✅ Pulizia Docker completata"
+echo "Pulizia Docker completata"
 
-# --- ELASTIC BEANSTALK ---
-echo "⚙️ SETUP ELASTIC BEANSTALK"
+echo "SETUP ELASTIC BEANSTALK"
 
-# PULIZIA CONFIGURAZIONI
 rm -rf .ebextensions
 mkdir -p .ebextensions
 
-# DOCKERRUN.aws.json
 cat > dockerrun.aws.json << EOL
 {
   "AWSEBDockerrunVersion": "1",
@@ -200,8 +181,6 @@ cat > dockerrun.aws.json << EOL
 }
 EOL
 
-# CONFIGURAZIONE CORRETTA (Rimuove la configurazione statica non valida)
-# QUESTA SEZIONE È STATA CORRETTA PER ELIMINARE L'ERRORE 'Invalid option specification'
 cat > .ebextensions/01-app.config << EOL
 option_settings:
   aws:elasticbeanstalk:application:environment:
@@ -219,25 +198,23 @@ option_settings:
     Protocol: HTTP
 EOL
 
-# CREA/VERIFICA APPLICAZIONE EB
-echo "🔄 Creazione/verifica applicazione EB..."
+echo "Creazione/verifica applicazione EB..."
 aws elasticbeanstalk create-application \
     --application-name $APP_NAME \
     --region $REGION \
-    2>/dev/null && echo "✅ Applicazione EB creata" || echo "⚠️  Applicazione EB già esistente"
+    2>/dev/null && echo "Applicazione EB creata" || echo "Applicazione EB già esistente"
 
 sleep 5
 
-# PREPARA E CARICA VERSIONE
-echo "📦 Preparazione package EB..."
+echo "Preparazione package EB..."
 rm -f $APP_NAME.zip
 zip -r $APP_NAME.zip dockerrun.aws.json Dockerfile application.py requirements.txt static/ .ebextensions/ -x "*.git*" "*.DS_STORE*" "deploy-*.sh" "*.zip" "*.log" ".aws-sam/*"
 
-echo "📤 Upload su S3..."
+echo "Upload su S3..."
 aws s3 cp $APP_NAME.zip s3://$S3_BUCKET/$APP_NAME.zip
 
 VERSION_LABEL="v-complete-$(date +%Y%m%d%H%M%S)"
-echo "🏷️ Creazione versione: $VERSION_LABEL"
+echo "Creazione versione: $VERSION_LABEL"
 
 aws elasticbeanstalk create-application-version \
     --application-name $APP_NAME \
@@ -245,26 +222,24 @@ aws elasticbeanstalk create-application-version \
     --version-label "$VERSION_LABEL" \
     --source-bundle S3Bucket="$S3_BUCKET",S3Key="$APP_NAME.zip"
 
-echo "✅ Versione applicazione creata"
+echo "Versione applicazione creata"
 
-# VERIFICA SE L'AMBIENTE ESISTE GIA'
-echo "🔍 Verifica ambiente esistente..."
+echo " Verifica ambiente esistente..."
 ENV_INFO=$(aws elasticbeanstalk describe-environments --application-name $APP_NAME --environment-names "$ENV_NAME" --region $REGION --query 'Environments[0]' --output json 2>/dev/null || echo "{}")
 ENV_STATUS=$(echo "$ENV_INFO" | jq -r '.Status // "NOT_FOUND"')
 
 if [ "$ENV_STATUS" = "Ready" ] || [ "$ENV_STATUS" = "Updating" ] || [ "$ENV_STATUS" = "Launching" ]; then
-    echo "🔄 Aggiornamento environment esistente: $ENV_NAME"
+    echo "Aggiornamento environment esistente: $ENV_NAME"
     aws elasticbeanstalk update-environment \
         --application-name $APP_NAME \
         --environment-name "$ENV_NAME" \
         --version-label "$VERSION_LABEL" \
         --region $REGION
 else
-    echo "🌱 Creazione nuovo environment: $ENV_NAME"
+    echo "Creazione nuovo environment: $ENV_NAME"
     
-    # Pulisci ambiente terminato se esiste
     if [ "$ENV_STATUS" = "Terminated" ]; then
-        echo "🧹 Pulizia ambiente terminato..."
+        echo " Pulizia ambiente terminato..."
         aws elasticbeanstalk delete-environment \
             --environment-name "$ENV_NAME" \
             --region $REGION \
@@ -272,7 +247,7 @@ else
         sleep 10
     fi
     
-    echo "🚀 Creazione environment Elastic Beanstalk..."
+    echo "Creazione environment Elastic Beanstalk..."
     aws elasticbeanstalk create-environment \
         --application-name $APP_NAME \
         --environment-name "$ENV_NAME" \
@@ -286,9 +261,8 @@ else
         --region $REGION
 fi
 
-# --- MONITORAGGIO DEPLOY ---
 echo ""
-echo "⏳ Monitoraggio deploy (ogni ${MONITORING_INTERVAL}s, max ${MAX_MONITORING_CYCLES} cicli)..."
+echo "Monitoraggio deploy (ogni ${MONITORING_INTERVAL}s, max ${MAX_MONITORING_CYCLES} cicli)..."
 DEPLOY_SUCCESS=false
 
 for i in $(seq 1 $MAX_MONITORING_CYCLES); do
@@ -298,54 +272,51 @@ for i in $(seq 1 $MAX_MONITORING_CYCLES); do
     
     echo "   [$i/$MAX_MONITORING_CYCLES] Stato: $STATUS - Salute: $HEALTH"
     
-    # Mostra eventi se ci sono problemi
     if [ "$STATUS" = "Launching" ] && [ $i -gt 5 ]; then
-        echo "   📋 Eventi recenti:"
+        echo "    Eventi recenti:"
         aws elasticbeanstalk describe-events --environment-name "$ENV_NAME" --region $REGION --max-items 2 --query 'Events[].Message' --output text 2>/dev/null | head -1 || echo "   Nessun evento importante"
     fi
     
     if [ "$STATUS" = "Ready" ] && [ "$HEALTH" = "Green" ]; then
         EB_URL=$(echo "$ENV_DATA" | jq -r '.CNAME // ""')
         echo ""
-        echo "🎉 DEPLOY COMPLETATO CON SUCCESSO!"
+        echo "DEPLOY COMPLETATO CON SUCCESSO!"
         echo "=================================="
-        echo "🌐 URL Applicazione: http://$EB_URL"
-        echo "📊 Dashboard: http://$EB_URL/dashboard" 
-        echo "🔧 Health Check: http://$EB_URL/worker/health"
+        echo " URL Applicazione: http://$EB_URL"
+        echo " Health Check: http://$EB_URL/worker/health"
         echo "⚡ API Gateway: $API_URL"
         echo ""
-        echo "📝 Credenziali di test:"
+        echo "Credenziali di test:"
         echo "   Email: test@filmrecommender.com"
-        echo "   Password: Password123"
+        echo "   Password: Password123!"
         echo ""
-        echo "🔍 Test rapido:"
+        echo "Test rapido:"
         echo "   curl http://$EB_URL/worker/health"
         DEPLOY_SUCCESS=true
         break
     elif [ "$STATUS" = "Terminated" ] || [ "$STATUS" = "Terminating" ]; then
-        echo "❌ Environment in stato $STATUS"
-        echo "🔍 Ultimi eventi:"
+        echo "Environment in stato $STATUS"
+        echo " Ultimi eventi:"
         aws elasticbeanstalk describe-events --environment-name "$ENV_NAME" --region $REGION --max-items 5 --query 'Events[].Message' --output text 2>/dev/null
         break
     fi
     sleep $MONITORING_INTERVAL
 done
 
-# --- PULIZIA E REPORT FINALE ---
 rm -f $APP_NAME.zip
 find static/js/ -name "*.bak" -delete 2>/dev/null || true
 
 echo ""
 if [ "$DEPLOY_SUCCESS" = true ]; then
-    echo "✅ DEPLOY RIUSCITO!"
-    echo "🌐 L'applicazione è disponibile all'URL sopra indicato"
-    echo "🔧 Per aggiornamenti futuri, esegui semplicemente: ./deploy.sh"
+    echo " DEPLOY RIUSCITO!"
+    echo " L'applicazione è disponibile all'URL sopra indicato"
+    echo " Per aggiornamenti futuri, esegui semplicemente: ./deploy.sh"
 else
-    echo "⚠️  Deploy non completato o in stato incerto"
-    echo "📋 Controlla manualmente con:"
+    echo "  Deploy non completato o in stato incerto"
+    echo "   Controlla manualmente con:"
     echo "   aws elasticbeanstalk describe-environments --application-name $APP_NAME --environment-names $ENV_NAME --region $REGION"
     echo "   aws elasticbeanstalk describe-events --environment-name $ENV_NAME --region $REGION"
 fi
 
 echo ""
-echo "✨ Script completato!"
+echo "Script completato!"

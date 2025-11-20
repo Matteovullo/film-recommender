@@ -10,9 +10,6 @@ logger.setLevel(logging.INFO)
 dynamodb = boto3.resource('dynamodb')
 
 def lambda_handler(event, context):
-    """
-    Processa i messaggi dalla coda SQS per raccomandazioni
-    """
     logger.info(f" Processing {len(event['Records'])} recommendation requests")
     
     successful_messages = 0
@@ -23,18 +20,16 @@ def lambda_handler(event, context):
             message_body = json.loads(record['body'])
             logger.info(f"Processing recommendation for: {message_body}")
             
-            # Elabora la raccomandazione
             result = process_recommendation(message_body)
             
-            # Salva nei log/analytics
             save_recommendation_analytics(message_body, result)
             
             successful_messages += 1
-            logger.info(f"✅ Successfully processed: {message_body.get('requestId', 'unknown')}")
+            logger.info(f"Successfully processed: {message_body.get('requestId', 'unknown')}")
             
         except Exception as e:
             failed_messages += 1
-            logger.error(f"❌ Failed to process message: {e}")
+            logger.error(f"Failed to process message: {e}")
             logger.error(f"Failed message body: {record.get('body', 'unknown')}")
     
     return {
@@ -47,13 +42,9 @@ def lambda_handler(event, context):
     }
 
 def process_recommendation(message_data):
-    """
-    Elabora una richiesta di raccomandazione
-    """
     preferences = message_data.get('preferences', {})
     genre = preferences.get('genre', '').lower()
     
-    # Database film per raccomandazioni (Risultati puliti qui)
     movies_database = {
         "sci-fi": [
             "Blade Runner 2049",
@@ -81,25 +72,21 @@ def process_recommendation(message_data):
         ]
     }
     
-    # Seleziona film in base al genere
     if genre in movies_database:
         recommendations = movies_database[genre]
     else:
         recommendations = ["Film consigliato 1", "Film consigliato 2"]
     
     return {
-        'recommendations': recommendations[:3],  # Massimo 3 film
+        'recommendations': recommendations[:3], 
         'genre': genre,
         'processedAt': datetime.now().isoformat(),
         'architecture': 'SQS + Lambda Async'
     }
 
 def save_recommendation_analytics(message_data, result):
-    """
-    Salva i dati delle raccomandazioni per analytics
-    """
     try:
-        table = dynamodb.Table('FilmRecommender-Analytics-v2') # <--- NUOVA TABELLA
+        table = dynamodb.Table('FilmRecommender-Analytics-v2') 
         
         analytics_record = {
             'eventId': str(uuid.uuid4()),
@@ -108,14 +95,13 @@ def save_recommendation_analytics(message_data, result):
             'genre': result.get('genre', 'unknown'),
             'recommendationsCount': len(result.get('recommendations', [])),
             'timestamp': datetime.now().isoformat(),
-            'ttl': int(datetime.now().timestamp()) + 2592000  # 30 giorni
+            'ttl': int(datetime.now().timestamp()) + 2592000 
         }
         
-        # Aggiungiamo il RequestId per permettere la ricerca tramite Polling
         analytics_record['requestId'] = message_data.get('requestId', 'unknown') 
 
         table.put_item(Item=analytics_record)
         logger.info(f"📊 Analytics saved: {analytics_record['eventId']}")
         
     except Exception as e:
-        logger.warning(f"⚠️ Could not save analytics: {e}")
+        logger.warning(f"Could not save analytics: {e}")

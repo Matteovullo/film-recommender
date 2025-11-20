@@ -7,17 +7,14 @@ from datetime import datetime, timedelta
 import requests
 import random
 
-# Inizializza Flask
 app = Flask('application', static_folder='static', template_folder='static/html')
 app.secret_key = 'film-recommender-docker-2024'
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('gunicorn.error')
 
-# URL API Gateway - letto dalle variabili d'ambiente di Elastic Beanstalk
-API_BASE_URL = os.environ.get('API_GATEWAY_URL', 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod')
+API_BASE_URL = os.environ.get('API_GATEWAY_URL', 'https://t6ect8rpch.execute-api.eu-west-1.amazonaws.com/Prod')
 
-# Inizializzazione Boto3 (necessaria per il fallback e worker)
 dynamodb = None
 sqs = None
 
@@ -25,7 +22,6 @@ def init_aws_clients():
     global dynamodb, sqs
     if dynamodb is None or sqs is None:
         try:
-            # Region hardcoded, ma puoi leggere da variabile d'ambiente
             dynamodb = boto3.resource('dynamodb', region_name='eu-west-1') 
             sqs = boto3.client('sqs', region_name='eu-west-1')
         except Exception as e:
@@ -47,18 +43,15 @@ def app_page():
 def dashboard():
     return render_template('analytics_dashboard.html')
 
-# Endpoint per ottenere raccomandazioni - CHIAMATA DIRETTA A LAMBDA (Proxy Sincrono)
 @app.route('/api/recommend', methods=['POST'])
 def get_recommendations():
     try:
         logger.info("📨 Ricevuta richiesta raccomandazioni")
         
-        # Prepara i dati per la Lambda
         data = request.json
         if not data or 'preferences' not in data:
             return jsonify({'error': 'Dati preferences mancanti'}), 400
         
-        # CHIAMATA DIRETTA all'API Gateway Lambda
         logger.info(f"🔗 Chiamando Lambda: {API_BASE_URL}/api/recommend")
         
         response = requests.post(
@@ -78,7 +71,6 @@ def get_recommendations():
             return jsonify(result), 200
         else:
             logger.error(f"❌ Errore Lambda: {response.status_code} - {response.text}")
-            # Fallback: raccomandazioni locali
             return get_fallback_recommendations(data)
             
     except requests.exceptions.Timeout:
@@ -91,7 +83,6 @@ def get_recommendations():
         logger.error(f"💥 Errore interno: {e}")
         return jsonify({'error': 'Errore interno del server'}), 500
 
-# NUOVO ENDPOINT: Proxy per l'invio ASINCRONO (via SQS)
 @app.route('/api/recommend/async', methods=['POST'])
 def post_async_recommendations():
     try:
@@ -101,7 +92,6 @@ def post_async_recommendations():
         if not data or 'preferences' not in data:
             return jsonify({'error': 'Dati preferences mancanti'}), 400
         
-        # CHIAMATA all'API Gateway Lambda all'endpoint asincrono
         logger.info(f"🔗 Chiamando Lambda Asincrona: {API_BASE_URL}/api/recommend/async")
         
         response = requests.post(
@@ -115,14 +105,11 @@ def post_async_recommendations():
         
         logger.info(f"📨 Risposta Lambda Asincrona: {response.status_code}")
         
-        # La risposta attesa è 202 (Accepted)
         if response.status_code == 202:
             result = response.json()
             return jsonify(result), 202
         else:
-            # Gestione errore
             logger.error(f"❌ Errore Lambda Asincrona: {response.status_code} - {response.text}")
-            # Ritorna l'errore o il fallback
             return jsonify(response.json()), response.status_code
             
     except requests.exceptions.RequestException as e:
@@ -132,13 +119,11 @@ def post_async_recommendations():
         logger.error(f"💥 Errore interno Asincrono: {e}")
         return jsonify({'error': 'Errore interno del server'}), 500
 
-# NUOVO ENDPOINT DI POLLING: Proxy per ottenere lo stato e il risultato
 @app.route('/api/recommend/status/<request_id>', methods=['GET'])
 def get_recommendation_status(request_id):
     try:
         logger.info(f"📊 Ricevuta richiesta di stato per ID: {request_id}")
         
-        # CHIAMATA al nuovo endpoint di status della Lambda
         response = requests.get(
             f'{API_BASE_URL}/api/recommend/status/{request_id}',
             headers={
@@ -146,13 +131,11 @@ def get_recommendation_status(request_id):
             },
             timeout=5
         )
-        
-        # La Lambda restituisce 200 se completo, 202 se in corso.
+
         if response.status_code == 200 or response.status_code == 202:
             return jsonify(response.json()), response.status_code
         else:
             logger.error(f"❌ Errore Polling: {response.status_code} - {response.text}")
-            # Ritorna lo stato di elaborazione se c'è un errore temporaneo nel proxy
             return jsonify({'status': 'processing', 'message': 'Elaborazione in corso o ID non trovato.'}), 202
             
     except requests.exceptions.RequestException as e:
@@ -160,9 +143,7 @@ def get_recommendation_status(request_id):
         return jsonify({'status': 'processing', 'message': 'Connessione temporaneamente non disponibile.'}), 202
 
 
-# Fallback per raccomandazioni locali
 def get_fallback_recommendations(data):
-    # Logica di fallback (omessa per brevità ma da mantenere)
     preferences = data.get('preferences', {})
     genre = preferences.get('genre', '').lower()
     
@@ -207,13 +188,11 @@ def get_fallback_recommendations(data):
         'timestamp': datetime.now().isoformat()
     })
 
-# Endpoint per analytics - CHIAMATA DIRETTA A LAMBDA (Proxy)
 @app.route('/api/analytics', methods=['GET'])
 def get_analytics():
     try:
         logger.info("📊 Ricevuta richiesta analytics")
         
-        # CHIAMATA DIRETTA all'API Gateway Lambda
         response = requests.get(
             f'{API_BASE_URL}/api/analytics',
             headers={
@@ -225,7 +204,6 @@ def get_analytics():
         if response.status_code == 200:
             return jsonify(response.json()), 200
         else:
-            # Fallback analytics (Genera dati casuali per mostrare la dashboard)
             return jsonify({
                 'status': 'success',
                 'metrics': {
@@ -240,7 +218,6 @@ def get_analytics():
         logger.error(f"Errore analytics: {e}")
         return jsonify({'error': 'Errore nel servizio analytics'}), 500
 
-# ... (MANTENERE QUI TUTTE LE ALTRE ROTTE E FUNZIONI DI SUPPORTO)
 @app.route('/worker/health')
 def worker_health():
     return jsonify({
@@ -263,13 +240,10 @@ def process_queue():
         'timestamp': datetime.now().isoformat()
     })
 
-# ... (Mantenere qui le funzioni process_sqs_messages e save_analytics_to_dynamodb se presenti nel worker)
 def process_sqs_messages():
-    # logica di process_sqs_messages
     return 0
 
 def save_analytics_to_dynamodb(event_data):
-    # logica di save_analytics_to_dynamodb
     pass
 
 if __name__ == '__main__':

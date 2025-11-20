@@ -1,10 +1,8 @@
-/* style-unified.css - UNIFICAZIONE STILI */
 * { margin: 0; padding: 0; box-sizing: border-box; }
 
-/* Sfondo e Contenitore Globale */
 body {
     font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); /* Sfondo da auth.css */
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); 
     min-height: 100vh;
     display: flex;
     align-items: center;
@@ -13,30 +11,26 @@ body {
 }
 
 .container {
-    max-width: 500px; /* Ridotto per centrare l'attenzione */
+    max-width: 500px; 
     width: 100%;
     background: white;
-    border-radius: 15px; /* Angoli arrotondati da auth.css */
+    border-radius: 15px; 
     box-shadow: 0 20px 40px rgba(0,0,0,0.1);
     overflow: hidden;
 }
 
-/* Header */
 .header {
-    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%); /* Stile da auth.css */
+    background: linear-gradient(135deg, #2c3e50 0%, #3498db 100%);
     color: white;
     padding: 30px;
     text-align: center;
 }
 
-.header h1 { margin-bottom: 5px; } /* Regolazione interna */
-.header p { color: #ecf0f1; } /* Sottotitolo */
+.header h1 { margin-bottom: 5px; } 
+.header p { color: #ecf0f1; } 
 
-/* Contenuto principale */
 .content { padding: 40px; }
 
-
-/* Form e Input */
 .form-control { 
     width: 100%; 
     padding: 12px; 
@@ -53,7 +47,6 @@ body {
     margin-top: 20px; 
 }
 
-/* Applica lo stile uniforme agli input sia di auth.html che app.html */
 .auth-form input, .form-control {
     padding: 15px;
     border: 2px solid #e0e0e0;
@@ -81,7 +74,6 @@ body {
 }
 
 
-/* Bottoni */
 .btn {
     background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
     color: white;
@@ -122,7 +114,6 @@ body {
     margin-top: 0;
 }
 
-/* Messaggi interni alla pagina (usati in index.html) */
 .message { 
     padding: 15px; 
     border-radius: 8px; 
@@ -133,7 +124,6 @@ body {
     color: white;
 }
 
-/* Messaggi a comparsa (usati in app.js - sovrascrive lo stile base per la posizione) */
 #message {
     position: fixed;
     top: 20px;
@@ -165,7 +155,6 @@ body {
     color: white;
 }
 
-/* Sezione Verifica (Login Page) */
 .verification-section {
     background: #f8f9fa;
     padding: 25px;
@@ -193,7 +182,6 @@ body {
     color: #2c3e50;
 }
 
-/* Loading Spinner */
 .loading {
     display: inline-block;
     width: 1em;
@@ -209,7 +197,6 @@ body {
     to { transform: rotate(360deg); }
 }
 
-/* Sezione Risultati (App Page) */
 .results-section h3 {
     margin-bottom: 20px;
     color: #2c3e50;
@@ -217,7 +204,6 @@ body {
     padding-bottom: 10px;
 }
 
-/* Card informativa per richiesta asincrona */
 .info-message {
     background: #d1ecf1; 
     color: #0c5460; 
@@ -230,8 +216,6 @@ body {
 .info-message p { margin-bottom: 5px; }
 .info-message small { display: block; margin-top: 10px; color: #7f8c8d; }
 
-
-/* Media Query per Responsiveness */
 @media (max-width: 480px) {
     .container {
         margin: 10px;

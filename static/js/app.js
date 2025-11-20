@@ -1,8 +1,7 @@
 let currentToken = localStorage.getItem('cognitoToken');
 let currentUser = localStorage.getItem('cognitoUser');
 
-// Risoluzione CONFLITTO - LASCIARE UNA SOLA RIGA PULITA
-let API_BASE_URL = 'https://mk9humh7rf.execute-api.eu-west-1.amazonaws.com/Prod';
+let API_BASE_URL = 'https://t6ect8rpch.execute-api.eu-west-1.amazonaws.com/Prod';
 
 function showMessage(text, type = 'info') {
     const messageDiv = document.getElementById('message') || createMessageDiv();
@@ -23,7 +22,7 @@ function createMessageDiv() {
     return div;
 }
 
-const POLLING_INTERVAL = 3000; // 3 secondi per il polling
+const POLLING_INTERVAL = 3000; 
 
 async function startPolling(requestId, genre, recommendBtn, originalText) {
     const listDiv = document.getElementById('recommendationsList');
@@ -41,7 +40,6 @@ async function startPolling(requestId, genre, recommendBtn, originalText) {
         try {
             console.log(`⏱️ Polling stato per ID: ${requestId}`);
             
-            // Chiamata all'endpoint proxy di polling
             const statusResponse = await fetch(`/api/recommend/status/${requestId}`, {
                 method: 'GET',
                 headers: {
@@ -50,7 +48,6 @@ async function startPolling(requestId, genre, recommendBtn, originalText) {
             });
             const statusData = await statusResponse.json();
 
-            // Il backend risponde 200 se i dati sono pronti (status: 'complete')
             if (statusResponse.status === 200 && statusData.status === 'complete') {
                 
                 clearInterval(poll);
@@ -58,7 +55,6 @@ async function startPolling(requestId, genre, recommendBtn, originalText) {
                 recommendBtn.disabled = false;
                 showMessage(`✅ Risultati per ${statusData.genre || genre} ricevuti!`, 'success');
                 
-                // Visualizza i risultati
                 const htmlList = statusData.recommendations.map(movie => `
                     <div class="recommendation-item">
                         <h4>🎭 ${movie}</h4>
@@ -68,13 +64,11 @@ async function startPolling(requestId, genre, recommendBtn, originalText) {
                 listDiv.innerHTML = htmlList;
 
             } else if (statusResponse.status !== 202) {
-                // Errore inaspettato o status non 'processing'
                 clearInterval(poll);
                 recommendBtn.innerHTML = originalText;
                 recommendBtn.disabled = false;
                 throw new Error(statusData.error || statusData.message || 'Errore di polling inatteso.');
             }
-            // Altrimenti, continua il polling (status 202 processing)
 
         } catch (err) {
             clearInterval(poll);
@@ -102,7 +96,6 @@ window.getRecommendations = async () => {
     try {
         console.log('📡 Invio richiesta ASINCRONA a /api/recommend/async...');
         
-        // 1. CHIAMATA ASINCRONA INIZIALE (Ricevi 202 Accepted)
         const response = await fetch('/api/recommend/async', {
             method: 'POST',
             headers: {
@@ -120,11 +113,9 @@ window.getRecommendations = async () => {
         const data = await response.json();
 
         if (response.status === 202) {
-            // 2. INIZIA IL POLLING
             showMessage(`🚀 Richiesta per ${genre} accodata! Avvio monitoraggio...`, 'info');
             const requestId = data.requestId;
             
-            // Avvia la funzione di polling con i dati necessari
             startPolling(requestId, genre, recommendBtn, originalText);
             
         } else if (!response.ok) {
@@ -132,7 +123,6 @@ window.getRecommendations = async () => {
         }
 
     } catch (err) {
-        // Gestione errore iniziale
         console.error('❌ Errore in getRecommendations:', err);
         showMessage('❌ Errore: ' + err.message, 'error');
         recommendBtn.innerHTML = originalText;
@@ -146,7 +136,6 @@ window.signOut = function() {
     window.location.href = '/?logout=true';
 };
 
-// Verifica autenticazione al caricamento
 document.addEventListener('DOMContentLoaded', function() {
     console.log('🔍 Controllo autenticazione...');
     
@@ -160,7 +149,6 @@ document.addEventListener('DOMContentLoaded', function() {
         console.log('✅ Utente autenticato:', savedUser);
         console.log('🌐 Ambiente pronto');
         
-        // MOSTRA L'EMAIL DELL'UTENTE NELL'HEADER:
         const userNameDisplay = document.getElementById('userNameDisplay');
         if (userNameDisplay) {
              userNameDisplay.textContent = `Benvenuto, ${savedUser}!`;
@@ -168,7 +156,6 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
-// Stile per i messaggi
 const style = document.createElement('style');
 style.textContent = `
     .success-message { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
