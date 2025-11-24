@@ -12,9 +12,10 @@ ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 S3_BUCKET_FULL="sam-deployment-bucket-$REGION-$ACCOUNT_ID"
 
 echo "======================================================"
-echo "⚙️ FASE PRELIMINARE: CREAZIONE INFRASTRUTTURA BASE"
-echo "   Regione: $REGION"
+echo " FASE PRELIMINARE: CREAZIONE INFRASTRUTTURA BASE"
 echo "======================================================"
+echo " Regione: $REGION"
+echo "------------------------------------------------------"
 
 echo "1. Creazione o verifica bucket S3 per artefatti SAM..."
 aws s3 mb s3://$S3_BUCKET_FULL --region $REGION 2>/dev/null || echo "Bucket S3 $S3_BUCKET_FULL esiste o è stato creato."
@@ -116,7 +117,7 @@ update_file() {
     FILE=$1
     PATTERN=$2
     REPLACEMENT=$3
-    if [[ "$OSTYPE" == "darwin"* ]]; then 
+    if [[ "$OSTYPE" == "darwin"* ]]; then
         sed -i '' "$PATTERN" "$FILE"
     else 
         sed -i "$PATTERN" "$FILE"
@@ -131,7 +132,7 @@ update_file application.py "s|API_BASE_URL = os.environ.get('API_GATEWAY_URL', '
 update_file static/js/app.js "s|let API_BASE_URL = '.*';|let API_BASE_URL = '$API_URL';|g"
 
 echo "======================================================"
-echo "INFRASTRUTTURA BASE CREATA E CODICE AGGIORNATO"
+echo " INFRASTRUTTURA BASE CREATA E CODICE AGGIORNATO"
 echo "======================================================"
 echo "Risorse Create/Aggiornate da SAM:"
 echo "  - Tabella DynamoDB: FilmRecommender-Analytics-v2"

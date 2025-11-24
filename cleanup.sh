@@ -16,10 +16,11 @@ S3_BUCKET_EB="elasticbeanstalk-$REGION-$ACCOUNT_ID"
 S3_BUCKET_SAM="sam-deployment-bucket-$REGION-$ACCOUNT_ID" 
 
 echo "======================================================"
-echo "FASE DI PULIZIA TOTALE: ELIMINAZIONE INFRASTRUTTURA"
-echo "   Regione: $REGION"
-echo "   Account: $ACCOUNT_ID"
+echo " FASE DI PULIZIA TOTALE: ELIMINAZIONE INFRASTRUTTURA"
 echo "======================================================"
+echo " Regione: $REGION"
+echo " Account: $ACCOUNT_ID"
+echo "------------------------------------------------------"
 sleep 3 
 
 echo "1. Terminazione dell'ambiente Elastic Beanstalk ($ENV_NAME)..."
@@ -84,7 +85,7 @@ fi
 remove_iam_role "aws-elasticbeanstalk-ec2-role"
 
 echo "======================================================"
-echo "PULIZIA COMPLETATA CON SUCCESSO!"
+echo " PULIZIA COMPLETATA CON SUCCESSO!"
 echo "   Tutte le risorse create dal progetto sono state rimosse."
 echo "======================================================"
 
