@@ -3,45 +3,50 @@ version: 0.2
 phases:
   install:
     commands:
-      # CORREZIONE: Usiamo YUM (gestore di pacchetti per Amazon Linux) al posto di apt-get
-      - echo "Installing jq for Secrets Manager parsing using yum..."
+      # Installazione delle dipendenze necessarie per l'ambiente CodeBuild
+      - echo "Installing dependencies (jq and SAM CLI)..."
       - yum install -y jq
+      - pip install aws-sam-cli
       
   pre_build:
     commands:
-      # Login a ECR per pushare l'immagine Docker
+      # Login a ECR (per l'immagine finale)
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
       - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
       
-      # --- AUTHENTICATION DOCKER HUB (RISOLVE 'toomanyrequests') ---
-      # Questo ora funzionerà perché jq è installato nella fase precedente.
+      # Autenticazione a Docker Hub per i pull rate
       - echo "Authenticating to Docker Hub..."
-      - export DOCKER_SECRET_NAME="dockerhub-auth-secret" # Usa il nome esatto del tuo Secret
+      - export DOCKER_SECRET_NAME="dockerhub-auth-secret"
       
-      # Recupera le credenziali da Secrets Manager
+      # Recupero e utilizzo delle credenziali da Secrets Manager
       - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
       - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
       - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
 
-      # Esegue il Login a Docker Hub per i pull rate
       - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       - echo "Docker Hub Login Succeeded"
-      # -------------------------------------------------------------
       
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
       
   build:
     commands:
-      # Questo docker build ora può pullare l'immagine base Python
+      # 1. Costruzione e tag dell'immagine Docker principale
       - echo "Building Docker image..."
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
       
+      # 2. RISOLUZIONE PROBLEMA LAMBDA: PACKAGING SAM
+      # Questo comando zippa il codice Lambda e lo carica nel bucket artefatti.
+      # Utilizza il nome del tuo bucket specifico: film-recommender-pipeline-v7-023048164072
+      - echo "Packaging Serverless application (SAM)..."
+      - sam package --template-file template.yaml --output-template-file **packaged.yaml** --s3-bucket **film-recommender-pipeline-v7-023048164072**
+
   post_build:
     commands:
+      # Push delle immagini Docker a ECR
       - echo "Pushing Docker images to ECR..."
       - docker push $REPOSITORY_URI:latest
       - docker push $REPOSITORY_URI:$IMAGE_TAG
@@ -50,8 +55,12 @@ phases:
       
 artifacts:
   files:
+    # Si assicura che il template impacchettato (packaged.yaml) sia disponibile per la fase di deploy.
     - '**/*'
   secondary-artifacts:
     definition:
       files:
         - imagedefinitions.json
+    sam-deploy-template:
+      files:
+        - **packaged.yaml**
