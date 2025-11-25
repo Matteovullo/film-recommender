@@ -3,9 +3,9 @@ version: 0.2
 phases:
   install:
     commands:
-      # Installa jq per poter parsare il JSON del Secret Manager
-      - echo "Installing jq for Secrets Manager parsing..."
-      - apt-get update && apt-get install -y jq 
+      # CORREZIONE: Usiamo YUM (gestore di pacchetti per Amazon Linux) al posto di apt-get
+      - echo "Installing jq for Secrets Manager parsing using yum..."
+      - yum install -y jq
       
   pre_build:
     commands:
