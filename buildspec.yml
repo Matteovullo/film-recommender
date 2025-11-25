@@ -1,19 +1,45 @@
 version: 0.2
 
 phases:
+  install:
+    commands:
+      # Installa jq per poter parsare il JSON del Secret Manager
+      - echo "Installing jq for Secrets Manager parsing..."
+      - apt-get update && apt-get install -y jq 
+      
   pre_build:
     commands:
+      # Login a ECR per pushare l'immagine Docker
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
       - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
+      
+      # --- AUTHENTICATION DOCKER HUB (RISOLVE 'toomanyrequests') ---
+      # Questo ora funzionerà perché jq è installato nella fase precedente.
+      - echo "Authenticating to Docker Hub..."
+      - export DOCKER_SECRET_NAME="dockerhub-auth-secret" # Usa il nome esatto del tuo Secret
+      
+      # Recupera le credenziali da Secrets Manager
+      - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
+      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
+      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
+
+      # Esegue il Login a Docker Hub per i pull rate
+      - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      - echo "Docker Hub Login Succeeded"
+      # -------------------------------------------------------------
+      
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+      
   build:
     commands:
+      # Questo docker build ora può pullare l'immagine base Python
       - echo "Building Docker image..."
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
+      
   post_build:
     commands:
       - echo "Pushing Docker images to ECR..."
@@ -21,6 +47,7 @@ phases:
       - docker push $REPOSITORY_URI:$IMAGE_TAG
       - echo "Writing image definitions file..."
       - printf '[{"name":"film-recommender","imageUri":"%s"}]' $REPOSITORY_URI:latest > imagedefinitions.json
+      
 artifacts:
   files:
     - '**/*'

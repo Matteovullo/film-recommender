@@ -13,7 +13,7 @@ app.secret_key = 'film-recommender-docker-2024'
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger('gunicorn.error')
 
-API_BASE_URL = os.environ.get('API_GATEWAY_URL', 'https://hm7km270z3.execute-api.eu-west-1.amazonaws.com/Prod')
+API_BASE_URL = os.environ.get('API_GATEWAY_URL', 'https://qz6mrfesok.execute-api.eu-west-1.amazonaws.com/Prod')
 
 dynamodb = None
 sqs = None

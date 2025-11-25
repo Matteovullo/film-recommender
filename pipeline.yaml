@@ -13,13 +13,26 @@ Parameters:
   GitHubToken:
     Type: String
     NoEcho: true
+  
+  # Parametri necessari per lo Stage Deploy
+  EBApplicationName:
+    Type: String
+    Default: film-recommender-final
+  EBEnvironmentName:
+    Type: String
+    Default: film-recommender-final-env
+  LambdaStackName:
+    Type: String
+    Default: film-recommender-final-lambda
 
 Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub "film-recommender-pipeline-${AWS::AccountId}"
+      # NOME V7 DEL BUCKET ARTEFATTI
+      BucketName: !Sub "film-recommender-pipeline-v7-${AWS::AccountId}" 
 
+  # Ruolo CodeBuild
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -36,11 +49,10 @@ Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: film-recommender-build
+      # NOME V7 DEL PROGETTO CODEBUILD
+      Name: film-recommender-build-v7 
       Source:
-        Type: GITHUB
-        Location: !Sub "https://github.com/${GitHubOwner}/${GitHubRepo}.git"
-        BuildSpec: buildspec.yml
+        Type: CODEPIPELINE 
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_MEDIUM
@@ -49,10 +61,28 @@ Resources:
         EnvironmentVariables:
           - Name: ECR_REPOSITORY
             Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender"
+          - Name: LAMBDA_STACK_NAME
+            Value: !Ref LambdaStackName
       Artifacts:
-        Type: NO_ARTIFACTS
+        Type: CODEPIPELINE
+        Name: BuildArtifact
       ServiceRole: !Ref CodeBuildRole
 
+  # Ruolo di Servizio per CloudFormation
+  CloudFormationServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudformation.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AdministratorAccess 
+
+  # Ruolo CodePipeline (Permessi completi)
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -73,12 +103,18 @@ Resources:
                   - codebuild:*
                   - s3:*
                   - ecr:*
+                  - cloudformation:*
+                  - elasticbeanstalk:*
+                  - iam:PassRole
+                  - lambda:*
+                  - sqs:*
+                  - dynamodb:*
                 Resource: "*"
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: film-recommender-pipeline
+      Name: film-recommender-pipeline-v7 # NOME DELLA PIPELINE V7
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -97,8 +133,10 @@ Resources:
                 Repo: !Ref GitHubRepo
                 Branch: !Ref GitHubBranch
                 OAuthToken: !Ref GitHubToken
+                PollForSourceChanges: true
               OutputArtifacts:
                 - Name: SourceArtifact
+        
         - Name: Build
           Actions:
             - Name: Build
@@ -111,11 +149,47 @@ Resources:
                 ProjectName: !Ref CodeBuildProject
               InputArtifacts:
                 - Name: SourceArtifact
+              OutputArtifacts:
+                - Name: BuildArtifact
 
+        # 🚨 STAGE DI DEPLOYMENT
+        - Name: Deploy
+          Actions:
+            # AZIONE 1: Deploy dello Stack Serverless (SAM/CFN)
+            - Name: DeploySAMStack
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: CloudFormation
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildArtifact 
+              Configuration:
+                StackName: !Ref LambdaStackName 
+                ActionMode: REPLACE_ON_FAILURE 
+                TemplatePath: BuildArtifact::template.yaml 
+                Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
+                RoleArn: !GetAtt CloudFormationServiceRole.Arn
+              RunOrder: 1 
+            
+            # AZIONE 2: Deploy su Elastic Beanstalk (EB)
+            - Name: DeployEBFrontend
+              ActionTypeId:
+                Category: Deploy
+                Owner: AWS
+                Provider: ElasticBeanstalk
+                Version: '1'
+              InputArtifacts:
+                - Name: BuildArtifact 
+              Configuration:
+                ApplicationName: !Ref EBApplicationName
+                EnvironmentName: !Ref EBEnvironmentName
+              RunOrder: 2 
+                
 Outputs:
   PipelineUrl:
     Description: "CodePipeline Console URL"
-    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline/view"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v7/view"
   RepositoryUrl:
     Description: "GitHub Repository URL"
     Value: !Sub "https://github.com/${GitHubOwner}/${GitHubRepo}"
