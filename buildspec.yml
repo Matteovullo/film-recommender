@@ -3,9 +3,11 @@ version: 0.2
 phases:
   install:
     commands:
-      # Installazione delle dipendenze necessarie per l'ambiente CodeBuild
-      - echo "Installing dependencies (jq and SAM CLI)..."
-      - yum install -y jq
+      # Amazon Linux usa 'yum' (non apt-get).
+      # Installiamo jq per il parsing del Secret e pip per SAM CLI.
+      - echo "Installing dependencies (jq, pip, and SAM CLI)..."
+      - yum install -y jq || { echo "ERRORE: Impossibile installare jq con yum."; exit 1; }
+      # Installazione SAM CLI
       - pip install aws-sam-cli
       
   pre_build:
@@ -20,10 +22,10 @@ phases:
       - echo "Authenticating to Docker Hub..."
       - export DOCKER_SECRET_NAME="dockerhub-auth-secret"
       
-      # Recupero e utilizzo delle credenziali da Secrets Manager
+      # Recupero e utilizzo delle credenziali da Secrets Manager (usa jq installato)
       - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
-      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
-      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
+      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r .username)
+      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r .password)
 
       - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       - echo "Docker Hub Login Succeeded"
@@ -40,9 +42,9 @@ phases:
       
       # 2. RISOLUZIONE PROBLEMA LAMBDA: PACKAGING SAM
       # Questo comando zippa il codice Lambda e lo carica nel bucket artefatti.
-      # Utilizza il nome del tuo bucket specifico: film-recommender-pipeline-v7-023048164072
+      # L'output template sarà "packaged.yaml"
       - echo "Packaging Serverless application (SAM)..."
-      - sam package --template-file template.yaml --output-template-file **packaged.yaml** --s3-bucket **film-recommender-pipeline-v7-023048164072**
+      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket film-recommender-pipeline-v7-023048164072
 
   post_build:
     commands:
@@ -55,12 +57,13 @@ phases:
       
 artifacts:
   files:
-    # Si assicura che il template impacchettato (packaged.yaml) sia disponibile per la fase di deploy.
     - '**/*'
   secondary-artifacts:
-    definition:
+    # CORREZIONE SINTASSI ARTIFACTS: Non usare "definition:" come nome dell'artefatto
+    # Deve essere un nome univoco, qui usiamo 'samTemplate' e 'imageDef'
+    samTemplate:
+      files:
+        - packaged.yaml
+    imageDef:
       files:
         - imagedefinitions.json
-    sam-deploy-template:
-      files:
-        - **packaged.yaml**
