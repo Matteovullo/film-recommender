@@ -3,32 +3,32 @@ version: 0.2
 phases:
   install:
     commands:
-      # Amazon Linux usa 'yum' (non apt-get).
-      # Installiamo jq per il parsing del Secret e pip per SAM CLI.
-      - echo "Installing dependencies (jq, pip, and SAM CLI)..."
-      - yum install -y jq || { echo "ERRORE: Impossibile installare jq con yum."; exit 1; }
-      # Installazione SAM CLI
+      # CORREZIONE 1: Usa YUM (gestore di pacchetti per Amazon Linux) e installa jq
+      - echo "Installing jq and pip dependencies..."
+      - yum install -y jq || echo "jq install fallito (non critico se già installato)."
       - pip install aws-sam-cli
       
   pre_build:
     commands:
-      # Login a ECR (per l'immagine finale)
+      # Login a ECR (Repository AWS)
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
       - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
       
-      # Autenticazione a Docker Hub per i pull rate
+      # --- AUTHENTICATION DOCKER HUB ---
       - echo "Authenticating to Docker Hub..."
-      - export DOCKER_SECRET_NAME="dockerhub-auth-secret"
+      - export DOCKER_SECRET_NAME="dockerhub-auth-secret" # Nome del Secret in Secrets Manager
       
-      # Recupero e utilizzo delle credenziali da Secrets Manager (usa jq installato)
+      # Recupera le credenziali da Secrets Manager (richiede jq)
       - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
-      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r .username)
-      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r .password)
+      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
+      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
 
+      # Login a Docker Hub 
       - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
       - echo "Docker Hub Login Succeeded"
+      # -------------------------------------------------------------
       
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
@@ -40,9 +40,7 @@ phases:
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
       
-      # 2. RISOLUZIONE PROBLEMA LAMBDA: PACKAGING SAM
-      # Questo comando zippa il codice Lambda e lo carica nel bucket artefatti.
-      # L'output template sarà "packaged.yaml"
+      # 2. Packaging SAM per il deploy Lambda
       - echo "Packaging Serverless application (SAM)..."
       - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket film-recommender-pipeline-v7-023048164072
 
@@ -59,8 +57,6 @@ artifacts:
   files:
     - '**/*'
   secondary-artifacts:
-    # CORREZIONE SINTASSI ARTIFACTS: Non usare "definition:" come nome dell'artefatto
-    # Deve essere un nome univoco, qui usiamo 'samTemplate' e 'imageDef'
     samTemplate:
       files:
         - packaged.yaml
