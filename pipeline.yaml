@@ -1,11 +1,11 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: 'Film Recommender CI/CD Pipeline'
+Description: Film Recommender CICD Pipeline
 
 Parameters:
   GitHubOwner:
     Type: String
   GitHubRepo:
-    Type: String  
+    Type: String
     Default: film-recommender
   GitHubBranch:
     Type: String
@@ -13,8 +13,6 @@ Parameters:
   GitHubToken:
     Type: String
     NoEcho: true
-  
-  # Parametri necessari per lo Stage Deploy
   EBApplicationName:
     Type: String
     Default: film-recommender-final
@@ -29,10 +27,8 @@ Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
-      # Nome del bucket V7 per evitare il conflitto con i vecchi stack
-      BucketName: !Sub "film-recommender-pipeline-v8-${AWS::AccountId}" 
+      BucketName: !Sub 'film-recommender-pipeline-v8-${AWS::AccountId}'
 
-  # Ruolo CodeBuild
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -49,10 +45,9 @@ Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      # NOME V7 DEL PROGETTO CODEBUILD
-      Name: film-recommender-build-v8 
+      Name: film-recommender-build-v8
       Source:
-        Type: CODEPIPELINE 
+        Type: CODEPIPELINE
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_MEDIUM
@@ -60,7 +55,7 @@ Resources:
         PrivilegedMode: true
         EnvironmentVariables:
           - Name: ECR_REPOSITORY
-            Value: !Sub "${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender"
+            Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender'
           - Name: LAMBDA_STACK_NAME
             Value: !Ref LambdaStackName
       Artifacts:
@@ -68,7 +63,6 @@ Resources:
         Name: BuildArtifact
       ServiceRole: !Ref CodeBuildRole
 
-  # Ruolo di Servizio per CloudFormation
   CloudFormationServiceRole:
     Type: AWS::IAM::Role
     Properties:
@@ -80,9 +74,8 @@ Resources:
               Service: cloudformation.amazonaws.com
             Action: sts:AssumeRole
       ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AdministratorAccess 
+        - arn:aws:iam::aws:policy/AdministratorAccess
 
-  # Ruolo CodePipeline (CORREZIONE CRITICA IAM: Aggiunto autoscaling:*)
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -99,7 +92,6 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                # PERMESSI AGGIORNATI PER RISOLVERE L'ERRORE 403
                 Action:
                   - codebuild:*
                   - s3:*
@@ -110,13 +102,37 @@ Resources:
                   - lambda:*
                   - sqs:*
                   - dynamodb:*
-                  - autoscaling:* # <--- RISOLVE L'ERRORE 403 SU EB/AutoScaling
-                Resource: "*"
+                  - autoscaling:*
+                Resource: '*'
+
+  EBInstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: ec2.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
+        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
+        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
+      Policies:
+        - PolicyName: AllowEC2DescribeLaunchTemplates
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - ec2:DescribeLaunchTemplates
+                Resource: '*'
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: film-recommender-pipeline-v8 # NOME DELLA PIPELINE V7
+      Name: film-recommender-pipeline-v8
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -138,7 +154,6 @@ Resources:
                 PollForSourceChanges: true
               OutputArtifacts:
                 - Name: SourceArtifact
-        
         - Name: Build
           Actions:
             - Name: Build
@@ -153,46 +168,40 @@ Resources:
                 - Name: SourceArtifact
               OutputArtifacts:
                 - Name: BuildArtifact
-
-        # 🚨 STAGE DI DEPLOYMENT
         - Name: Deploy
           Actions:
-            # AZIONE 1: Deploy dello Stack Serverless (SAM/CFN)
             - Name: DeploySAMStack
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
                 Provider: CloudFormation
-                Version: '1'
+                Version: 1
               InputArtifacts:
-                - Name: BuildArtifact 
+                - Name: BuildArtifact
               Configuration:
-                StackName: !Ref LambdaStackName 
-                ActionMode: REPLACE_ON_FAILURE 
-                #TemplatePath: BuildArtifact::template.yaml 
-                TemplatePath: BuildArtifact:packaged.yaml
+                StackName: !Ref LambdaStackName
+                ActionMode: REPLACE_ON_FAILURE
+                TemplatePath: BuildArtifact::packaged.yaml  # <--- Usa il file SAM con S3 URI
                 Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                 RoleArn: !GetAtt CloudFormationServiceRole.Arn
-              RunOrder: 1 
-            
-            # AZIONE 2: Deploy su Elastic Beanstalk (EB)
+              RunOrder: 1
             - Name: DeployEBFrontend
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
                 Provider: ElasticBeanstalk
-                Version: '1'
+                Version: 1
               InputArtifacts:
-                - Name: BuildArtifact 
+                - Name: BuildArtifact
               Configuration:
                 ApplicationName: !Ref EBApplicationName
                 EnvironmentName: !Ref EBEnvironmentName
-              RunOrder: 2 
-                
+              RunOrder: 2
+
 Outputs:
   PipelineUrl:
-    Description: "CodePipeline Console URL"
-    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v8/view"
+    Description: CodePipeline Console URL
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v8/view'
   RepositoryUrl:
-    Description: "GitHub Repository URL"
-    Value: !Sub "https://github.com/${GitHubOwner}/${GitHubRepo}"
+    Description: GitHub Repository URL
+    Value: !Sub 'https://github.com/${GitHubOwner}/${GitHubRepo}'
