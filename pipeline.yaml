@@ -30,7 +30,7 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       # Nome del bucket V7 per evitare il conflitto con i vecchi stack
-      BucketName: !Sub "film-recommender-pipeline-v7-${AWS::AccountId}" 
+      BucketName: !Sub "film-recommender-pipeline-v8-${AWS::AccountId}" 
 
   # Ruolo CodeBuild
   CodeBuildRole:
@@ -50,7 +50,7 @@ Resources:
     Type: AWS::CodeBuild::Project
     Properties:
       # NOME V7 DEL PROGETTO CODEBUILD
-      Name: film-recommender-build-v7 
+      Name: film-recommender-build-v8 
       Source:
         Type: CODEPIPELINE 
       Environment:
@@ -116,7 +116,7 @@ Resources:
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: film-recommender-pipeline-v7 # NOME DELLA PIPELINE V7
+      Name: film-recommender-pipeline-v8 # NOME DELLA PIPELINE V7
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -169,7 +169,8 @@ Resources:
               Configuration:
                 StackName: !Ref LambdaStackName 
                 ActionMode: REPLACE_ON_FAILURE 
-                TemplatePath: BuildArtifact::template.yaml 
+                #TemplatePath: BuildArtifact::template.yaml 
+                TemplatePath: BuildArtifact:packaged.yaml
                 Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                 RoleArn: !GetAtt CloudFormationServiceRole.Arn
               RunOrder: 1 
@@ -191,7 +192,7 @@ Resources:
 Outputs:
   PipelineUrl:
     Description: "CodePipeline Console URL"
-    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v7/view"
+    Value: !Sub "https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v8/view"
   RepositoryUrl:
     Description: "GitHub Repository URL"
     Value: !Sub "https://github.com/${GitHubOwner}/${GitHubRepo}"
