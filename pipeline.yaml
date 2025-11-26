@@ -29,7 +29,7 @@ Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
-      # NOME V7 DEL BUCKET ARTEFATTI
+      # Nome del bucket V7 per evitare il conflitto con i vecchi stack
       BucketName: !Sub "film-recommender-pipeline-v7-${AWS::AccountId}" 
 
   # Ruolo CodeBuild
@@ -82,7 +82,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess 
 
-  # Ruolo CodePipeline (CORREZIONE CRITICA IAM)
+  # Ruolo CodePipeline (CORREZIONE CRITICA IAM: Aggiunto autoscaling:*)
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -99,7 +99,7 @@ Resources:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
-                # AGGIUNTO AUTOSCALING:* per risolvere l'errore 403
+                # PERMESSI AGGIORNATI PER RISOLVERE L'ERRORE 403
                 Action:
                   - codebuild:*
                   - s3:*
@@ -110,7 +110,7 @@ Resources:
                   - lambda:*
                   - sqs:*
                   - dynamodb:*
-                  - autoscaling:* # <--- AGGIUNTO PER RISOLVERE IL BLOCCO EB
+                  - autoscaling:* # <--- RISOLVE L'ERRORE 403 SU EB/AutoScaling
                 Resource: "*"
 
   CodePipeline:
