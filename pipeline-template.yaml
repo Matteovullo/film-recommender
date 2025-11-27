@@ -1,33 +1,31 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Film Recommender CICD Pipeline v10
+Description: Film Recommender CICD Pipeline
 
 Parameters:
   GitHubOwner:
     Type: String
   GitHubRepo:
     Type: String
-    Default: film-recommender
   GitHubBranch:
     Type: String
-    Default: main
   GitHubToken:
     Type: String
     NoEcho: true
   EBApplicationName:
     Type: String
-    Default: film-recommender-final
   EBEnvironmentName:
     Type: String
-    Default: film-recommender-final-env
   LambdaStackName:
     Type: String
-    Default: film-recommender-final-lambda
+  PipelineVersion:
+    Type: String
+    Default: v1
 
 Resources:
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Sub 'film-recommender-pipeline-v10-${AWS::AccountId}'
+      BucketName: !Sub 'film-pipe-${PipelineVersion}-${AWS::AccountId}'
 
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -45,7 +43,7 @@ Resources:
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
-      Name: film-recommender-build-v10
+      Name: !Sub 'film-build-${PipelineVersion}'
       Source:
         Type: CODEPIPELINE
       Environment:
@@ -99,50 +97,12 @@ Resources:
                   - cloudformation:*
                   - elasticbeanstalk:*
                   - iam:PassRole
-                  - lambda:*
-                  - sqs:*
-                  - dynamodb:*
-                  - autoscaling:*
                 Resource: '*'
-
-  EBInstanceRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
-        Version: '2012-10-17'
-        Statement:
-          - Effect: Allow
-            Principal:
-              Service: ec2.amazonaws.com
-            Action: sts:AssumeRole
-      ManagedPolicyArns:
-        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier
-        - arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier
-        - arn:aws:iam::aws:policy/AmazonEC2ContainerRegistryReadOnly
-      Policies:
-        - PolicyName: EC2LaunchTemplatePermissions
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  - ec2:DescribeLaunchTemplates
-                  - ec2:DescribeImages
-                  - ec2:DescribeInstances
-                  - ec2:DescribeInstanceTypes
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeVpcs
-                  - ec2:CreateLaunchTemplate
-                  - ec2:CreateLaunchTemplateVersion
-                  - ec2:DeleteLaunchTemplate
-                  - ec2:RunInstances
-                Resource: "*"
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
-      Name: film-recommender-pipeline-v10
+      Name: !Sub 'film-pipe-${PipelineVersion}'
       RoleArn: !GetAtt CodePipelineRole.Arn
       ArtifactStore:
         Type: S3
@@ -211,7 +171,7 @@ Resources:
 Outputs:
   PipelineUrl:
     Description: CodePipeline Console URL
-    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-recommender-pipeline-v10/view'
-  RepositoryUrl:
-    Description: GitHub Repository URL
-    Value: !Sub 'https://github.com/${GitHubOwner}/${GitHubRepo}'
+    Value: !Sub 'https://${AWS::Region}.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-pipe-${PipelineVersion}/view'
+  PipelineVersion:
+    Description: Pipeline Version Deployed
+    Value: !Ref PipelineVersion

@@ -1,7 +1,7 @@
 let currentToken = localStorage.getItem('cognitoToken');
 let currentUser = localStorage.getItem('cognitoUser');
 
-let API_BASE_URL = 'https://wraanu4py1.execute-api.eu-west-1.amazonaws.com/Prod';
+let API_BASE_URL = 'https://5rg1b8g2n4.execute-api.eu-west-1.amazonaws.com/Prod';
 
 function showMessage(text, type = 'info') {
     const messageDiv = document.getElementById('message') || createMessageDiv();

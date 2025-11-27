@@ -131,7 +131,7 @@ if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-e
 fi
 
 
-# --- ATTACCO POLICY ALL'EC2 ROLE (RISOLUZIONE BLOCCO EC2:Describe) ---
+# --- ATTACCO POLICY ALL'EC2 ROLE (RISOLUZIONE BLOCCO ec2:Describe) ---
 echo " > Attacco policy al EC2 Role (risoluzione Describe errors)..."
 
 # Policy gestite standard
@@ -150,25 +150,50 @@ aws iam attach-role-policy \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
     2>/dev/null || echo " [INFO] Policy AWSElasticBeanstalkWorkerTier già attaccata"
 
-# Policy custom EC2 richieste (AGGIUNTA CRITICA per Amazon Linux 2023)
-# Risolve ec2:DescribeLaunchTemplates e ec2:DescribeImages
+# AGGIUNTA CRITICA: Policy per Amazon Linux 2023
+echo " > Creazione policy custom per Amazon Linux 2023..."
 aws iam put-role-policy \
   --role-name aws-elasticbeanstalk-ec2-role \
   --policy-name custom-eb-ec2-describe-permissions \
   --policy-document '{
     "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeLaunchTemplates", 
-        "ec2:DescribeImages",         
-        "ec2:DescribeInstances",      
-        "ec2:DescribeTags"
-      ],
-      "Resource": "*"
-    }]
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow", 
+        "Action": [
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateLaunchTemplateVersion",
+          "ec2:DeleteLaunchTemplate",
+          "ec2:RunInstances"
+        ],
+        "Resource": [
+          "arn:aws:ec2:*:*:launch-template/*",
+          "arn:aws:ec2:*:*:instance/*",
+          "arn:aws:ec2:*:*:volume/*",
+          "arn:aws:ec2:*:*:network-interface/*",
+          "arn:aws:ec2:*:*:security-group/*",
+          "arn:aws:ec2:*:*:subnet/*"
+        ]
+      }
+    ]
   }' \
   --region "$REGION"
+
+echo " [OK] Policy custom creata per risolvere ec2:DescribeImages"
 
 echo " > Attesa propagazione IAM (30s)..."
 sleep 30
@@ -203,7 +228,7 @@ docker container prune -f || true
 docker image prune -a -f || true
 echo " [OK] Pulizia Docker completata"
 
-# --- ELASTIC BEANSTALK CONFIG AND DEPLOYMENT (FORSE CONFLITTO CON PIPELINE) ---
+# --- ELASTIC BEANSTALK CONFIG AND DEPLOYMENT (QUESTO VERRÀ AGGIORNATO ANCHE DALLA PIPELINE) ---
 echo "--------------------------------------------------"
 echo "--- SETUP ELASTIC BEANSTALK ---"
 
@@ -278,7 +303,7 @@ echo " [OK] Versione applicazione creata"
 echo " > Verifica ambiente esistente..."
 ENV_INFO=$(aws elasticbeanstalk describe-environments --application-name "$APP_NAME" --environment-names "$ENV_NAME" --region "$REGION" --query 'Environments[0]' --output json 2>/dev/null)
 ENV_STATUS=$(echo "$ENV_INFO" | jq -r .Status)
-if [[ "$ENV_STATUS" == "Ready" || "$ENV_STATUS" == "Updating" || "$ENVSTATUS" == "Launching" ]]; then
+if [[ "$ENV_STATUS" == "Ready" || "$ENV_STATUS" == "Updating" || "$ENV_STATUS" == "Launching" ]]; then
   echo " > Aggiornamento environment esistente $ENV_NAME"
   aws elasticbeanstalk update-environment \
     --application-name "$APP_NAME" \
@@ -323,7 +348,7 @@ for ((i=1; i<=MAX_MONITORING_CYCLES; i++)); do
     echo
     echo "=================================================="
     echo " DEPLOY COMPLETATO CON SUCCESSO!"
-    echo "=================================="
+    echo "=================================================="
     echo " URL Applicazione: http://$EB_URL"
     echo " API Gateway: $API_URL"
     echo "--------------------------------------------------"
@@ -342,7 +367,7 @@ for ((i=1; i<=MAX_MONITORING_CYCLES; i++)); do
   sleep $MONITORING_INTERVAL
 done
 
-echo "--------------------------------------------------"
+echo "=================================================="
 if [ "$DEPLOY_SUCCESS" = true ]; then
   echo " SUCCESSO: Il deploy è completo."
   echo " L'applicazione è disponibile all'URL sopra indicato"
