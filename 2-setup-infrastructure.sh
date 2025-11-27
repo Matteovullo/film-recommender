@@ -14,11 +14,17 @@ echo " 🏗️  SETUP INFRASTRUTTURA BASE"
 echo "======================================================"
 
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-S3_BUCKET_FULL="sam-deployment-bucket-$REGION-$ACCOUNT_ID"
+S3_BUCKET_FULL="film-recommender-pipeline-$ACCOUNT_ID"
 
-# 1. CREA BUCKET S3 PER SAM
-echo "1. Creazione bucket S3 per SAM..."
-aws s3 mb "s3://$S3_BUCKET_FULL" --region $REGION 2>/dev/null || echo " ✅ Bucket già esistente"
+# 1. CREA BUCKET S3 PER SAM E PIPELINE
+echo "1. Creazione bucket S3 per SAM e pipeline..."
+if ! aws s3 ls "s3://$S3_BUCKET_FULL" --region $REGION &>/dev/null; then
+    echo " - Creazione bucket: $S3_BUCKET_FULL"
+    aws s3 mb "s3://$S3_BUCKET_FULL" --region $REGION
+    echo " ✅ Bucket creato con successo"
+else
+    echo " ✅ Bucket già esistente: $S3_BUCKET_FULL"
+fi
 
 # 2. DEPLOY STACK SAM
 echo "2. Deploy Stack SAM (Lambda, API Gateway, DynamoDB, SQS)..."
@@ -93,3 +99,4 @@ echo "API URL: $API_URL"
 echo "User Pool: $USER_POOL_ID"
 echo "Client ID: $CLIENT_ID"
 echo "Utente Test: $TEST_USER_EMAIL"
+echo "Bucket S3: $S3_BUCKET_FULL"
