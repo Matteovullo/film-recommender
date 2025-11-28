@@ -1,0 +1,12 @@
+{
+  "AWSEBDockerrunVersion": 1,
+  "Image": {
+    "Name": "023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender:latest",
+    "Update": true
+  },
+  "Ports": [
+    {
+      "ContainerPort": 8000
+    }
+  ]
+}

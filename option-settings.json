@@ -1,0 +1,27 @@
+[
+  {
+    "Namespace": "aws:elasticbeanstalk:environment",
+    "OptionName": "EnvironmentType",
+    "Value": "SingleInstance"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:environment:proxy",
+    "OptionName": "ProxyServer",
+    "Value": "nginx"
+  },
+  {
+    "Namespace": "aws:autoscaling:launchconfiguration",
+    "OptionName": "IamInstanceProfile",
+    "Value": "aws-elasticbeanstalk-ec2-role"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:environment:process:default",
+    "OptionName": "StickinessEnabled",
+    "Value": "true"
+  },
+  {
+    "Namespace": "aws:elasticbeanstalk:command",
+    "OptionName": "Timeout",
+    "Value": "600"
+  }
+]

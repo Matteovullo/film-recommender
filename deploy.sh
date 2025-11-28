@@ -4,7 +4,7 @@ set -e
 REGION="eu-west-1"
 APP_NAME="film-recommender-final"
 ECR_REPO="film-recommender"
-LAMBDA_STACK="$APP_NAME-lambda"
+LAMBDA_STACK="$APP_NAME-lambda-stack"
 ENV_NAME="$APP_NAME-env"
 SOLUTION_STACK="64bit Amazon Linux 2023 v4.7.2 running Docker"
 MONITORING_INTERVAL=20
