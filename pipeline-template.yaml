@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Film Recommender CICD Pipeline with complete permissions
-
+######
 Parameters:
   GitHubOwner:
     Type: String
