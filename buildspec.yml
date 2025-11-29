@@ -36,30 +36,6 @@ phases:
       - echo "🔐 Login a ECR..."
       - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URL
       
-      # Configura IAM roles per Elastic Beanstalk
-      - echo "⚙️ Configurazione ruoli IAM per Elastic Beanstalk..."
-      
-      # Service Role
-      - if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then aws iam create-role --role-name aws-elasticbeanstalk-service-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole"}]}' --region $REGION; echo "✅ Service Role creato"; else echo "✅ Service Role già esistente"; fi
-      
-      # EC2 Role
-      - if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then aws iam create-role --role-name aws-elasticbeanstalk-ec2-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' --region $REGION; echo "✅ EC2 Role creato"; else echo "✅ EC2 Role già esistente"; fi
-      
-      # Instance Profile
-      - if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then aws iam create-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION; sleep 5; aws iam add-role-to-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION; echo "✅ Instance Profile creato"; else echo "✅ Instance Profile già esistente"; fi
-      
-      # Attach policies
-      - echo "📋 Configurazione policies..."
-      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth --region $REGION || echo "✅ Policy EnhancedHealth"
-      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService --region $REGION || echo "✅ Policy Service"
-      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier --region $REGION || echo "✅ Policy WebTier"
-      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker --region $REGION || echo "✅ Policy MulticontainerDocker"
-      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier --region $REGION || echo "✅ Policy WorkerTier"
-      
-      # Policy custom per EC2
-      - echo "🔧 Configurazione policy custom EC2..."
-      - aws iam put-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-name EB-EC2-Custom-Permissions --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ec2:DescribeImages","ec2:DescribeInstances","ec2:DescribeInstanceTypes","ec2:DescribeLaunchTemplates","ec2:DescribeSecurityGroups","ec2:DescribeSubnets","ec2:DescribeVpcs"],"Resource":"*"}]}' --region $REGION || echo "✅ Policy custom EC2"
-
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG="pipeline-$COMMIT_HASH"
       - echo "🏷️ Image tag: $IMAGE_TAG"
@@ -82,9 +58,9 @@ phases:
       - echo "📁 Preparazione deployment package per Elastic Beanstalk..."
       - mkdir -p .ebextensions
       
-      # Crea dockerrun.aws.json
+      # Crea dockerrun.aws.json (uso di DOCKEREOF senza apici singoli per espansione variabili)
       - |
-        cat > dockerrun.aws.json << 'DOCKEREOF'
+        cat > dockerrun.aws.json << DOCKEREOF
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
@@ -105,7 +81,7 @@ DOCKEREOF
 option_settings:
   aws:elasticbeanstalk:application:environment:
     PYTHONPATH: /app
-    AWS_REGION: '"$REGION"'
+    AWS_REGION: 'eu-west-1'
     FLASK_ENV: production
   aws:elasticbeanstalk:cloudwatch:logs:
     StreamLogs: true
@@ -154,11 +130,12 @@ APPCONFIGEOF
       - sam deploy --template-file packaged.yaml --stack-name $LAMBDA_STACK_NAME --capabilities CAPABILITY_IAM --region $REGION --no-fail-on-empty-changeset
       - echo "✅ Deploy SAM completato"
       
-      # File per CodePipeline
+      # File per CodePipeline (uso del formato CodeBuild per definire l'immagine ECR)
       - echo "📝 Writing image definitions file..."
       - printf '[{"name":"film-recommender","imageUri":"%s"}]' $ECR_URL:latest > imagedefinitions.json
 
 artifacts:
+
   files:
     - '**/*'
   secondary-artifacts:
