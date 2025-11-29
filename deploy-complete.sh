@@ -26,7 +26,7 @@ echo "FASE 3: Setup ECR e Docker..."
 
 # FASE 4: Pipeline
 echo "FASE 4: Deploy eb..."
-./4-deploy-eb.sh
+./deploy.sh
 
 # FASE 4: Pipeline
 echo "FASE 5: Creazione pipeline CI/CD..."

@@ -1,5 +1,15 @@
 version: 0.2
 
+env:
+  variables:
+    APP_NAME: "film-recommender-final"
+    ECR_REPO: "film-recommender"
+    ENV_NAME: "film-recommender-final-env"
+    REGION: "eu-west-1"
+    SOLUTION_STACK: "64bit Amazon Linux 2023 v4.7.2 running Docker"
+    LAMBDA_STACK_NAME: "film-recommender-final-lambda"
+    PIPELINE_VERSION: "v1"
+
 phases:
   install:
     runtime-versions:
@@ -87,24 +97,8 @@ phases:
         aws iam put-role-policy \
           --role-name aws-elasticbeanstalk-ec2-role \
           --policy-name EB-EC2-Custom-Permissions \
-          --policy-document '{
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "ec2:DescribeImages",
-                  "ec2:DescribeInstances",
-                  "ec2:DescribeInstanceTypes",
-                  "ec2:DescribeLaunchTemplates",
-                  "ec2:DescribeSecurityGroups",
-                  "ec2:DescribeSubnets",
-                  "ec2:DescribeVpcs"
-                ],
-                "Resource": "*"
-              }
-            ]
-          }' --region $REGION || echo " ✅ Policy custom EC2"
+          --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ec2:DescribeImages","ec2:DescribeInstances","ec2:DescribeInstanceTypes","ec2:DescribeLaunchTemplates","ec2:DescribeSecurityGroups","ec2:DescribeSubnets","ec2:DescribeVpcs"],"Resource":"*"}]}' \
+          --region $REGION || echo " ✅ Policy custom EC2"
 
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG="pipeline-$COMMIT_HASH"
@@ -129,39 +123,39 @@ phases:
       - mkdir -p .ebextensions
       - |
         cat > dockerrun.aws.json << EOF
-        {
-          "AWSEBDockerrunVersion": "1",
-          "Image": {
-            "Name": "$ECR_URL:latest",
-            "Update": "true"
-          },
-          "Ports": [
-            {
-              "ContainerPort": "8000"
-            }
-          ]
-        }
-        EOF
+{
+  "AWSEBDockerrunVersion": "1",
+  "Image": {
+    "Name": "$ECR_URL:latest",
+    "Update": "true"
+  },
+  "Ports": [
+    {
+      "ContainerPort": "8000"
+    }
+  ]
+}
+EOF
       - |
         cat > .ebextensions/01-app.config << EOF
-        option_settings:
-          aws:elasticbeanstalk:application:environment:
-            PYTHONPATH: /app
-            AWS_REGION: $REGION
-            FLASK_ENV: production
-          aws:elasticbeanstalk:cloudwatch:logs:
-            StreamLogs: true
-            RetentionInDays: 7
-          aws:elasticbeanstalk:environment:process:default:
-            HealthCheckPath: /health
-            Port: 8000
-            Protocol: HTTP
+option_settings:
+  aws:elasticbeanstalk:application:environment:
+    PYTHONPATH: /app
+    AWS_REGION: $REGION
+    FLASK_ENV: production
+  aws:elasticbeanstalk:cloudwatch:logs:
+    StreamLogs: true
+    RetentionInDays: 7
+  aws:elasticbeanstalk:environment:process:default:
+    HealthCheckPath: /health
+    Port: 8000
+    Protocol: HTTP
 
-        container_commands:
-          01_setup_app:
-            command: "echo 'Application setup completed'"
-            leader_only: true
-        EOF
+container_commands:
+  01_setup_app:
+    command: "echo 'Application setup completed'"
+    leader_only: true
+EOF
       - zip -r deployment.zip dockerrun.aws.json .ebextensions/
       - echo "✅ Deployment package creato"
 
