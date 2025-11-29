@@ -18,92 +18,52 @@ phases:
       - echo "=== INSTALLAZIONE DEPENDENZE ==="
       - yum install -y jq git
       - pip install --upgrade aws-sam-cli boto3 docker
-      
+
   pre_build:
     commands:
       - echo "=== CONFIGURAZIONE PRE-BUILD ==="
       - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - REGION=$AWS_DEFAULT_REGION
       - S3_BUCKET="film-pipe-$PIPELINE_VERSION-$ACCOUNT_ID"
-      - APP_NAME="film-recommender-final"
-      - ENV_NAME="film-recommender-final-env"
-      - ECR_REPO="film-recommender"
       - ECR_URL="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$ECR_REPO"
+      - echo "Account ID: $ACCOUNT_ID"
+      - echo "S3 Bucket: $S3_BUCKET"
+      - echo "ECR URL: $ECR_URL"
       
       # Verifica/Crea bucket S3
-      - |
-        if ! aws s3 ls "s3://$S3_BUCKET" --region $REGION &>/dev/null; then
-          echo "🪣 Creazione bucket S3: $S3_BUCKET"
-          aws s3 mb "s3://$S3_BUCKET" --region $REGION
-        else
-          echo "✅ Bucket S3 già esistente"
-        fi
+      - if ! aws s3 ls "s3://$S3_BUCKET" --region $REGION &>/dev/null; then aws s3 mb "s3://$S3_BUCKET" --region $REGION; echo "🪣 Bucket S3 creato"; else echo "✅ Bucket S3 già esistente"; fi
       
       # Login ECR
       - echo "🔐 Login a ECR..."
       - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URL
       
-      # Configura IAM roles per Elastic Beanstalk (CRITICO)
+      # Configura IAM roles per Elastic Beanstalk
       - echo "⚙️ Configurazione ruoli IAM per Elastic Beanstalk..."
-      - |
-        # Service Role
-        if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then
-          echo " - Creazione Service Role..."
-          aws iam create-role \
-            --role-name aws-elasticbeanstalk-service-role \
-            --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
-            --region $REGION
-          echo " ✅ Service Role creato"
-        else
-          echo " ✅ Service Role già esistente"
-        fi
-        
-        # EC2 Role  
-        if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-          echo " - Creazione EC2 Role..."
-          aws iam create-role \
-            --role-name aws-elasticbeanstalk-ec2-role \
-            --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
-            --region $REGION
-          echo " ✅ EC2 Role creato"
-        else
-          echo " ✅ EC2 Role già esistente"
-        fi
-        
-        # Instance Profile
-        if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-          echo " - Creazione Instance Profile..."
-          aws iam create-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION
-          sleep 5
-          aws iam add-role-to-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION
-          echo " ✅ Instance Profile creato"
-        else
-          echo " ✅ Instance Profile già esistente"
-        fi
-        
-        # Attach policies al Service Role
-        echo " - Configurazione policies Service Role..."
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth --region $REGION || echo " ✅ Policy EnhancedHealth"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService --region $REGION || echo " ✅ Policy Service"
-        
-        # Attach policies all'EC2 Role
-        echo " - Configurazione policies EC2 Role..."
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier --region $REGION || echo " ✅ Policy WebTier"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker --region $REGION || echo " ✅ Policy MulticontainerDocker"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier --region $REGION || echo " ✅ Policy WorkerTier"
-        
-        # Policy custom per EC2 DescribeImages
-        echo " - Configurazione policy custom EC2..."
-        aws iam put-role-policy \
-          --role-name aws-elasticbeanstalk-ec2-role \
-          --policy-name EB-EC2-Custom-Permissions \
-          --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ec2:DescribeImages","ec2:DescribeInstances","ec2:DescribeInstanceTypes","ec2:DescribeLaunchTemplates","ec2:DescribeSecurityGroups","ec2:DescribeSubnets","ec2:DescribeVpcs"],"Resource":"*"}]}' \
-          --region $REGION || echo " ✅ Policy custom EC2"
+      
+      # Service Role
+      - if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then aws iam create-role --role-name aws-elasticbeanstalk-service-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole"}]}' --region $REGION; echo "✅ Service Role creato"; else echo "✅ Service Role già esistente"; fi
+      
+      # EC2 Role
+      - if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then aws iam create-role --role-name aws-elasticbeanstalk-ec2-role --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' --region $REGION; echo "✅ EC2 Role creato"; else echo "✅ EC2 Role già esistente"; fi
+      
+      # Instance Profile
+      - if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then aws iam create-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION; sleep 5; aws iam add-role-to-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION; echo "✅ Instance Profile creato"; else echo "✅ Instance Profile già esistente"; fi
+      
+      # Attach policies
+      - echo "📋 Configurazione policies..."
+      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth --region $REGION || echo "✅ Policy EnhancedHealth"
+      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService --region $REGION || echo "✅ Policy Service"
+      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier --region $REGION || echo "✅ Policy WebTier"
+      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker --region $REGION || echo "✅ Policy MulticontainerDocker"
+      - aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier --region $REGION || echo "✅ Policy WorkerTier"
+      
+      # Policy custom per EC2
+      - echo "🔧 Configurazione policy custom EC2..."
+      - aws iam put-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-name EB-EC2-Custom-Permissions --policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Action":["ec2:DescribeImages","ec2:DescribeInstances","ec2:DescribeInstanceTypes","ec2:DescribeLaunchTemplates","ec2:DescribeSecurityGroups","ec2:DescribeSubnets","ec2:DescribeVpcs"],"Resource":"*"}]}' --region $REGION || echo "✅ Policy custom EC2"
 
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG="pipeline-$COMMIT_HASH"
       - echo "🏷️ Image tag: $IMAGE_TAG"
-      
+
   build:
     commands:
       - echo "=== FASE BUILD ==="
@@ -121,41 +81,46 @@ phases:
       # Prepara deployment package per Elastic Beanstalk
       - echo "📁 Preparazione deployment package per Elastic Beanstalk..."
       - mkdir -p .ebextensions
+      
+      # Crea dockerrun.aws.json
       - |
-        cat > dockerrun.aws.json << EOF
+        cat > dockerrun.aws.json << 'DOCKEREOF'
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "$ECR_URL:latest",
+    "Name": "'"$ECR_URL"':latest",
     "Update": "true"
   },
   "Ports": [
     {
-      "ContainerPort": "8000"
+      "ContainerPort": "5000"
     }
   ]
 }
-EOF
+DOCKEREOF
+      
+      # Crea .ebextensions/01-app.config
       - |
-        cat > .ebextensions/01-app.config << EOF
+        cat > .ebextensions/01-app.config << 'APPCONFIGEOF'
 option_settings:
   aws:elasticbeanstalk:application:environment:
     PYTHONPATH: /app
-    AWS_REGION: $REGION
+    AWS_REGION: '"$REGION"'
     FLASK_ENV: production
   aws:elasticbeanstalk:cloudwatch:logs:
     StreamLogs: true
     RetentionInDays: 7
   aws:elasticbeanstalk:environment:process:default:
     HealthCheckPath: /health
-    Port: 8000
+    Port: 5000
     Protocol: HTTP
 
 container_commands:
   01_setup_app:
     command: "echo 'Application setup completed'"
     leader_only: true
-EOF
+APPCONFIGEOF
+      
       - zip -r deployment.zip dockerrun.aws.json .ebextensions/
       - echo "✅ Deployment package creato"
 
@@ -176,21 +141,12 @@ EOF
       # Crea/aggiorna versione Elastic Beanstalk
       - echo "🚀 Deploy to Elastic Beanstalk..."
       - VERSION_LABEL="pipeline-$IMAGE_TAG"
-      - |
-        # Crea versione applicazione
-        aws elasticbeanstalk create-application-version \
-          --application-name "$APP_NAME" \
-          --version-label "$VERSION_LABEL" \
-          --source-bundle "S3Bucket=$S3_BUCKET,S3Key=deployment.zip" \
-          --region "$REGION" || echo "ℹ️ Versione già esistente"
       
-      - |
-        # Aggiorna ambiente
-        aws elasticbeanstalk update-environment \
-          --environment-name "$ENV_NAME" \
-          --version-label "$VERSION_LABEL" \
-          --region "$REGION"
+      # Crea versione applicazione
+      - aws elasticbeanstalk create-application-version --application-name "$APP_NAME" --version-label "$VERSION_LABEL" --source-bundle "S3Bucket=$S3_BUCKET,S3Key=deployment.zip" --region "$REGION" || echo "ℹ️ Versione già esistente"
       
+      # Aggiorna ambiente
+      - aws elasticbeanstalk update-environment --environment-name "$ENV_NAME" --version-label "$VERSION_LABEL" --region "$REGION"
       - echo "✅ Deploy Elastic Beanstalk completato"
       
       # SAM Deploy
