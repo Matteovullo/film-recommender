@@ -88,7 +88,7 @@ phases:
 {
   "AWSEBDockerrunVersion": "1",
   "Image": {
-    "Name": "'"$ECR_URL"':latest",
+    "Name": "$ECR_URL:latest",
     "Update": "true"
   },
   "Ports": [
