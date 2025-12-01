@@ -3,46 +3,44 @@ version: 0.2
 phases:
   install:
     commands:
-      # CORREZIONE 1: Usa YUM (gestore di pacchetti per Amazon Linux) e installa jq
-      - echo "Installing jq and pip dependencies..."
+      - echo "Installing dependencies..."
       - yum install -y jq || echo "jq install fallito (non critico se già installato)."
       - pip install aws-sam-cli
       
   pre_build:
     commands:
-      # Login a ECR (Repository AWS)
+      # Login a ECR
       - echo "Logging in to Amazon ECR..."
       - aws --version
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
-      - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
+      - REPOSITORY_URI=$(aws ecr describe-repositories --repository-names film-recommender --region $AWS_DEFAULT_REGION --query 'repositories[0].repositoryUri' --output text)
+      - echo "ECR Repository: $REPOSITORY_URI"
       
-      # --- AUTHENTICATION DOCKER HUB ---
-      - echo "Authenticating to Docker Hub..."
-      - export DOCKER_SECRET_NAME="dockerhub-auth-secret" # Nome del Secret in Secrets Manager
+      # Recupera il nome del bucket S3 corrente dalla pipeline
+      - echo "Getting current pipeline S3 bucket..."
+      - PIPELINE_NAME="film-pipe-1"  # Nome fisso della pipeline corrente
+      - S3_BUCKET="${PIPELINE_NAME}-${AWS_ACCOUNT_ID}"
+      - echo "Using S3 bucket: $S3_BUCKET"
       
-      # Recupera le credenziali da Secrets Manager (richiede jq)
-      - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
-      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
-      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
-
-      # Login a Docker Hub 
-      - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
-      - echo "Docker Hub Login Succeeded"
-      # -------------------------------------------------------------
+      # Crea il bucket se non esiste
+      - echo "Creating S3 bucket if not exists..."
+      - aws s3 mb s3://$S3_BUCKET --region $AWS_DEFAULT_REGION 2>/dev/null || echo "Bucket already exists or creation failed"
       
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
       - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
+      - echo "Image tag: $IMAGE_TAG"
       
   build:
     commands:
-      # 1. Costruzione e tag dell'immagine Docker principale
+      # 1. Costruzione e tag dell'immagine Docker
       - echo "Building Docker image..."
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
       
-      # 2. Packaging SAM per il deploy Lambda
+      # 2. Packaging SAM per il deploy Lambda - USA LA VARIABILE CORRETTA
       - echo "Packaging Serverless application (SAM)..."
-      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket film-recommender-pipeline-v7-023048164072
+      - echo "Using S3 bucket for SAM: $S3_BUCKET"
+      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $S3_BUCKET
 
   post_build:
     commands:
