@@ -7,7 +7,7 @@ Parameters:
     Description: GitHub repository owner
   GitHubRepo:
     Type: String
-    Description: GitHub repository name
+    Default: film-recommender
   GitHubBranch:
     Type: String
     Description: GitHub branch to monitor

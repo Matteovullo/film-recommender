@@ -2,212 +2,57 @@ version: 0.2
 
 phases:
   install:
-    runtime-versions:
-      python: 3.9
     commands:
-      - echo "=== INSTALLAZIONE DEPENDENZE ==="
-      - yum install -y jq git
-      - pip install --upgrade aws-sam-cli boto3 docker
+      # CORREZIONE 1: Usa YUM (gestore di pacchetti per Amazon Linux) e installa jq
+      - echo "Installing jq and pip dependencies..."
+      - yum install -y jq || echo "jq install fallito (non critico se già installato)."
+      - pip install aws-sam-cli
       
   pre_build:
     commands:
-      - echo "=== CONFIGURAZIONE PRE-BUILD ==="
-      - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-      - REGION=$AWS_DEFAULT_REGION
-      - S3_BUCKET="film-pipe-$PIPELINE_VERSION-$ACCOUNT_ID"
-      - APP_NAME="film-recommender-final"
-      - ENV_NAME="film-recommender-final-env"
-      - ECR_REPO="film-recommender"
-      - ECR_URL="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/$ECR_REPO"
+      # Login a ECR (Repository AWS)
+      - echo "Logging in to Amazon ECR..."
+      - aws --version
+      - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
+      - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
       
-      # Verifica/Crea bucket S3
-      - |
-        if ! aws s3 ls "s3://$S3_BUCKET" --region $REGION &>/dev/null; then
-          echo "🪣 Creazione bucket S3: $S3_BUCKET"
-          aws s3 mb "s3://$S3_BUCKET" --region $REGION
-        else
-          echo "✅ Bucket S3 già esistente"
-        fi
+      # --- AUTHENTICATION DOCKER HUB ---
+      - echo "Authenticating to Docker Hub..."
+      - export DOCKER_SECRET_NAME="dockerhub-auth-secret" # Nome del Secret in Secrets Manager
       
-      # Login ECR
-      - echo "🔐 Login a ECR..."
-      - aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URL
-      
-      # Configura IAM roles per Elastic Beanstalk (CRITICO)
-      - echo "⚙️ Configurazione ruoli IAM per Elastic Beanstalk..."
-      - |
-        # Service Role
-        if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then
-          echo " - Creazione Service Role..."
-          aws iam create-role \
-            --role-name aws-elasticbeanstalk-service-role \
-            --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"elasticbeanstalk.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
-            --region $REGION
-          echo " ✅ Service Role creato"
-        else
-          echo " ✅ Service Role già esistente"
-        fi
-        
-        # EC2 Role  
-        if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-          echo " - Creazione EC2 Role..."
-          aws iam create-role \
-            --role-name aws-elasticbeanstalk-ec2-role \
-            --assume-role-policy-document '{"Version":"2012-10-17","Statement":[{"Effect":"Allow","Principal":{"Service":"ec2.amazonaws.com"},"Action":"sts:AssumeRole"}]}' \
-            --region $REGION
-          echo " ✅ EC2 Role creato"
-        else
-          echo " ✅ EC2 Role già esistente"
-        fi
-        
-        # Instance Profile
-        if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-          echo " - Creazione Instance Profile..."
-          aws iam create-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION
-          sleep 5
-          aws iam add-role-to-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION
-          echo " ✅ Instance Profile creato"
-        else
-          echo " ✅ Instance Profile già esistente"
-        fi
-        
-        # Attach policies al Service Role
-        echo " - Configurazione policies Service Role..."
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth --region $REGION || echo " ✅ Policy EnhancedHealth"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-service-role --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService --region $REGION || echo " ✅ Policy Service"
-        
-        # Attach policies all'EC2 Role
-        echo " - Configurazione policies EC2 Role..."
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier --region $REGION || echo " ✅ Policy WebTier"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker --region $REGION || echo " ✅ Policy MulticontainerDocker"
-        aws iam attach-role-policy --role-name aws-elasticbeanstalk-ec2-role --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier --region $REGION || echo " ✅ Policy WorkerTier"
-        
-        # Policy custom per EC2 DescribeImages
-        echo " - Configurazione policy custom EC2..."
-        aws iam put-role-policy \
-          --role-name aws-elasticbeanstalk-ec2-role \
-          --policy-name EB-EC2-Custom-Permissions \
-          --policy-document '{
-            "Version": "2012-10-17",
-            "Statement": [
-              {
-                "Effect": "Allow",
-                "Action": [
-                  "ec2:DescribeImages",
-                  "ec2:DescribeInstances",
-                  "ec2:DescribeInstanceTypes",
-                  "ec2:DescribeLaunchTemplates",
-                  "ec2:DescribeSecurityGroups",
-                  "ec2:DescribeSubnets",
-                  "ec2:DescribeVpcs"
-                ],
-                "Resource": "*"
-              }
-            ]
-          }' --region $REGION || echo " ✅ Policy custom EC2"
+      # Recupera le credenziali da Secrets Manager (richiede jq)
+      - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
+      - DOCKER_USERNAME=$(echo $DOCKER_CREDENTIALS | jq -r '.username')
+      - DOCKER_PASSWORD=$(echo $DOCKER_CREDENTIALS | jq -r '.password')
 
+      # Login a Docker Hub 
+      - docker login -u $DOCKER_USERNAME -p $DOCKER_PASSWORD
+      - echo "Docker Hub Login Succeeded"
+      # -------------------------------------------------------------
+      
       - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
-      - IMAGE_TAG="pipeline-$COMMIT_HASH"
-      - echo "🏷️ Image tag: $IMAGE_TAG"
+      - IMAGE_TAG=build-$(echo $CODEBUILD_BUILD_ID | awk -F":" '{print $2}')
       
   build:
     commands:
-      - echo "=== FASE BUILD ==="
-      # Build Docker image
-      - echo "🐳 Building Docker image..."
-      - docker build -t $ECR_REPO .
-      - docker tag $ECR_REPO:latest $ECR_URL:latest
-      - docker tag $ECR_REPO:latest $ECR_URL:$IMAGE_TAG
+      # 1. Costruzione e tag dell'immagine Docker principale
+      - echo "Building Docker image..."
+      - docker build -t $REPOSITORY_URI:latest .
+      - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
       
-      # SAM packaging
-      - echo "📦 Packaging Serverless application (SAM)..."
-      - sam build
-      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $S3_BUCKET --region $REGION
-
-      # Prepara deployment package per Elastic Beanstalk
-      - echo "📁 Preparazione deployment package per Elastic Beanstalk..."
-      - mkdir -p .ebextensions
-      - |
-        cat > dockerrun.aws.json << EOF
-        {
-          "AWSEBDockerrunVersion": "1",
-          "Image": {
-            "Name": "$ECR_URL:latest",
-            "Update": "true"
-          },
-          "Ports": [
-            {
-              "ContainerPort": "8000"
-            }
-          ]
-        }
-        EOF
-      - |
-        cat > .ebextensions/01-app.config << EOF
-        option_settings:
-          aws:elasticbeanstalk:application:environment:
-            PYTHONPATH: /app
-            AWS_REGION: $REGION
-            FLASK_ENV: production
-          aws:elasticbeanstalk:cloudwatch:logs:
-            StreamLogs: true
-            RetentionInDays: 7
-          aws:elasticbeanstalk:environment:process:default:
-            HealthCheckPath: /health
-            Port: 8000
-            Protocol: HTTP
-
-        container_commands:
-          01_setup_app:
-            command: "echo 'Application setup completed'"
-            leader_only: true
-        EOF
-      - zip -r deployment.zip dockerrun.aws.json .ebextensions/
-      - echo "✅ Deployment package creato"
+      # 2. Packaging SAM per il deploy Lambda
+      - echo "Packaging Serverless application (SAM)..."
+      - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket film-recommender-pipeline-v7-023048164072
 
   post_build:
     commands:
-      - echo "=== FASE POST-BUILD ==="
-      # Push Docker images
-      - echo "📤 Pushing Docker images to ECR..."
-      - docker push $ECR_URL:latest
-      - docker push $ECR_URL:$IMAGE_TAG
-      - echo "✅ Immagini Docker pushate"
+      # Push delle immagini Docker a ECR
+      - echo "Pushing Docker images to ECR..."
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Writing image definitions file..."
+      - printf '[{"name":"film-recommender","imageUri":"%s"}]' $REPOSITORY_URI:latest > imagedefinitions.json
       
-      # Upload deployment package to S3
-      - echo "📤 Upload deployment package to S3..."
-      - aws s3 cp deployment.zip "s3://$S3_BUCKET/deployment.zip"
-      - echo "✅ Package caricato su S3"
-      
-      # Crea/aggiorna versione Elastic Beanstalk
-      - echo "🚀 Deploy to Elastic Beanstalk..."
-      - VERSION_LABEL="pipeline-$IMAGE_TAG"
-      - |
-        # Crea versione applicazione
-        aws elasticbeanstalk create-application-version \
-          --application-name "$APP_NAME" \
-          --version-label "$VERSION_LABEL" \
-          --source-bundle "S3Bucket=$S3_BUCKET,S3Key=deployment.zip" \
-          --region "$REGION" || echo "ℹ️ Versione già esistente"
-      
-      - |
-        # Aggiorna ambiente
-        aws elasticbeanstalk update-environment \
-          --environment-name "$ENV_NAME" \
-          --version-label "$VERSION_LABEL" \
-          --region "$REGION"
-      
-      - echo "✅ Deploy Elastic Beanstalk completato"
-      
-      # SAM Deploy
-      - echo "🚀 Deploy SAM Stack..."
-      - sam deploy --template-file packaged.yaml --stack-name $LAMBDA_STACK_NAME --capabilities CAPABILITY_IAM --region $REGION --no-fail-on-empty-changeset
-      - echo "✅ Deploy SAM completato"
-      
-      # File per CodePipeline
-      - echo "📝 Writing image definitions file..."
-      - printf '[{"name":"film-recommender","imageUri":"%s"}]' $ECR_URL:latest > imagedefinitions.json
-
 artifacts:
   files:
     - '**/*'
