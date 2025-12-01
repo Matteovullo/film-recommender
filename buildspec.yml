@@ -90,7 +90,7 @@ phases:
       - sam deploy --template-file packaged.yaml --stack-name $LAMBDA_STACK_NAME --capabilities CAPABILITY_IAM --region $REGION --no-fail-on-empty-changeset
       - echo "✅ Deploy SAM completato"
       
-      # File per CodePipeline
+      # File per CodePipeline (uso del formato CodeBuild per definire l'immagine ECR)
       - echo "📝 Writing image definitions file..."
       - printf '[{"name":"film-recommender","imageUri":"%s"}]' $ECR_URL:latest > imagedefinitions.json
 
