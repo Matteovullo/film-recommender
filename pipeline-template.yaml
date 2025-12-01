@@ -1,36 +1,24 @@
 AWSTemplateFormatVersion: '2010-09-09'
-Description: Film Recommender CICD Pipeline with complete permissions
-######
+Description: Film Recommender CICD Pipeline
+
 Parameters:
   GitHubOwner:
     Type: String
-    Description: GitHub repository owner
   GitHubRepo:
     Type: String
-    Description: GitHub repository name
   GitHubBranch:
     Type: String
-    Description: GitHub branch to monitor
-    Default: main
   GitHubToken:
     Type: String
     NoEcho: true
-    Description: GitHub OAuth token
   EBApplicationName:
     Type: String
-    Description: Elastic Beanstalk application name
-    Default: film-recommender-final
   EBEnvironmentName:
     Type: String
-    Description: Elastic Beanstalk environment name
-    Default: film-recommender-final-env
   LambdaStackName:
     Type: String
-    Description: Lambda CloudFormation stack name
-    Default: film-recommender-final-lambda-stack
   PipelineVersion:
     Type: String
-    Description: Pipeline version identifier
     Default: v1
 
 Resources:
@@ -38,11 +26,6 @@ Resources:
     Type: AWS::S3::Bucket
     Properties:
       BucketName: !Sub 'film-pipe-${PipelineVersion}-${AWS::AccountId}'
-      LifecycleConfiguration:
-        Rules:
-          - Id: CleanupOldArtifacts
-            Status: Enabled
-            ExpirationInDays: 7
 
   CodeBuildRole:
     Type: AWS::IAM::Role
@@ -56,57 +39,27 @@ Resources:
             Action: sts:AssumeRole
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
-      Policies:
-        - PolicyName: ElasticBeanstalkExtendedAccess
-          PolicyDocument:
-            Version: '2012-10-17'
-            Statement:
-              - Effect: Allow
-                Action:
-                  # Elastic Beanstalk permissions
-                  - elasticbeanstalk:*
-                  # EC2 permissions for Amazon Linux 2023
-                  - ec2:DescribeImages
-                  - ec2:DescribeInstances
-                  - ec2:DescribeInstanceTypes
-                  - ec2:DescribeLaunchTemplates
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeVpcs
-                  # AutoScaling permissions
-                  - autoscaling:DescribeAutoScalingGroups
-                  - autoscaling:DescribeLaunchConfigurations
-                  - autoscaling:DescribeScalingActivities
-                  # IAM permissions for role configuration
-                  - iam:GetRole
-                  - iam:CreateRole
-                  - iam:AttachRolePolicy
-                  - iam:PutRolePolicy
-                  - iam:PassRole
-                Resource: "*"
 
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
       Name: !Sub 'film-build-${PipelineVersion}'
-      Description: Build project for Film Recommender application
       Source:
         Type: CODEPIPELINE
-        BuildSpec: buildspec.yml
       Environment:
         Type: LINUX_CONTAINER
         ComputeType: BUILD_GENERAL1_MEDIUM
         Image: aws/codebuild/amazonlinux2-x86_64-standard:4.0
         PrivilegedMode: true
         EnvironmentVariables:
-          - Name: PIPELINE_VERSION
-            Value: !Ref PipelineVersion
+          - Name: ECR_REPOSITORY
+            Value: !Sub '${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/film-recommender'
           - Name: LAMBDA_STACK_NAME
             Value: !Ref LambdaStackName
       Artifacts:
         Type: CODEPIPELINE
+        Name: BuildArtifact
       ServiceRole: !Ref CodeBuildRole
-      TimeoutInMinutes: 30
 
   CloudFormationServiceRole:
     Type: AWS::IAM::Role
@@ -132,56 +85,19 @@ Resources:
               Service: codepipeline.amazonaws.com
             Action: sts:AssumeRole
       Policies:
-        - PolicyName: PipelineCompleteAccess
+        - PolicyName: PipelineAccess
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  # CodeBuild permissions
-                  - codebuild:StartBuild
-                  - codebuild:StopBuild
-                  - codebuild:BatchGetBuilds
-                  - codebuild:BatchGetProjects
-                  # S3 permissions
-                  - s3:GetObject
-                  - s3:GetObjectVersion
-                  - s3:GetBucketVersioning
-                  - s3:PutObject
-                  - s3:ListBucket
-                  # ECR permissions
-                  - ecr:GetAuthorizationToken
-                  - ecr:BatchCheckLayerAvailability
-                  - ecr:GetDownloadUrlForLayer
-                  - ecr:GetRepositoryPolicy
-                  - ecr:DescribeRepositories
-                  - ecr:ListImages
-                  - ecr:DescribeImages
-                  - ecr:BatchGetImage
-                  - ecr:InitiateLayerUpload
-                  - ecr:UploadLayerPart
-                  - ecr:CompleteLayerUpload
-                  - ecr:PutImage
-                  # CloudFormation permissions
-                  - cloudformation:CreateStack
-                  - cloudformation:UpdateStack
-                  - cloudformation:DeleteStack
-                  - cloudformation:DescribeStacks
-                  - cloudformation:GetTemplate
-                  # Elastic Beanstalk permissions
+                  - codebuild:*
+                  - s3:*
+                  - ecr:*
+                  - cloudformation:*
                   - elasticbeanstalk:*
-                  # IAM permissions
                   - iam:PassRole
-                  # AutoScaling permissions
-                  - autoscaling:DescribeAutoScalingGroups
-                  - autoscaling:DescribeLaunchConfigurations
-                  # EC2 permissions
-                  - ec2:DescribeImages
-                  - ec2:DescribeInstances
-                  - ec2:DescribeSecurityGroups
-                  - ec2:DescribeSubnets
-                  - ec2:DescribeVpcs
-                Resource: "*"
+                Resource: '*'
 
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
@@ -205,13 +121,12 @@ Resources:
                 Repo: !Ref GitHubRepo
                 Branch: !Ref GitHubBranch
                 OAuthToken: !Ref GitHubToken
-                PollForSourceChanges: false
+                PollForSourceChanges: true
               OutputArtifacts:
                 - Name: SourceArtifact
-              RunOrder: 1
         - Name: Build
           Actions:
-            - Name: Build-And-Package
+            - Name: Build
               ActionTypeId:
                 Category: Build
                 Owner: AWS
@@ -223,10 +138,9 @@ Resources:
                 - Name: SourceArtifact
               OutputArtifacts:
                 - Name: BuildArtifact
-              RunOrder: 1
         - Name: Deploy
           Actions:
-            - Name: Deploy-Lambda
+            - Name: DeploySAMStack
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
@@ -236,12 +150,12 @@ Resources:
                 - Name: BuildArtifact
               Configuration:
                 StackName: !Ref LambdaStackName
-                ActionMode: CREATE_UPDATE
+                ActionMode: REPLACE_ON_FAILURE
                 TemplatePath: BuildArtifact::packaged.yaml
                 Capabilities: CAPABILITY_IAM,CAPABILITY_AUTO_EXPAND
                 RoleArn: !GetAtt CloudFormationServiceRole.Arn
               RunOrder: 1
-            - Name: Deploy-Frontend
+            - Name: DeployEBFrontend
               ActionTypeId:
                 Category: Deploy
                 Owner: AWS
@@ -261,9 +175,3 @@ Outputs:
   PipelineVersion:
     Description: Pipeline Version Deployed
     Value: !Ref PipelineVersion
-  BuildProjectName:
-    Description: CodeBuild Project Name
-    Value: !Ref CodeBuildProject
-  ArtifactBucket:
-    Description: S3 Artifact Bucket
-    Value: !Ref ArtifactStoreBucket
