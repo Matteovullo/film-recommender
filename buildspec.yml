@@ -57,46 +57,6 @@ phases:
       # Prepara deployment package per Elastic Beanstalk
       - echo "📁 Preparazione deployment package per Elastic Beanstalk..."
       - mkdir -p .ebextensions
-      
-      # Crea dockerrun.aws.json (uso di DOCKEREOF senza apici singoli per espansione variabili)
-      - |
-        cat > dockerrun.aws.json << DOCKEREOF
-{
-  "AWSEBDockerrunVersion": "1",
-  "Image": {
-    "Name": "$ECR_URL:latest",
-    "Update": "true"
-  },
-  "Ports": [
-    {
-      "ContainerPort": "5000"
-    }
-  ]
-}
-DOCKEREOF
-      
-      # Crea .ebextensions/01-app.config
-      - |
-        cat > .ebextensions/01-app.config << 'APPCONFIGEOF'
-option_settings:
-  aws:elasticbeanstalk:application:environment:
-    PYTHONPATH: /app
-    AWS_REGION: 'eu-west-1'
-    FLASK_ENV: production
-  aws:elasticbeanstalk:cloudwatch:logs:
-    StreamLogs: true
-    RetentionInDays: 7
-  aws:elasticbeanstalk:environment:process:default:
-    HealthCheckPath: /health
-    Port: 5000
-    Protocol: HTTP
-
-container_commands:
-  01_setup_app:
-    command: "echo 'Application setup completed'"
-    leader_only: true
-APPCONFIGEOF
-      
       - zip -r deployment.zip dockerrun.aws.json .ebextensions/
       - echo "✅ Deployment package creato"
 
@@ -130,12 +90,11 @@ APPCONFIGEOF
       - sam deploy --template-file packaged.yaml --stack-name $LAMBDA_STACK_NAME --capabilities CAPABILITY_IAM --region $REGION --no-fail-on-empty-changeset
       - echo "✅ Deploy SAM completato"
       
-      # File per CodePipeline (uso del formato CodeBuild per definire l'immagine ECR)
+      # File per CodePipeline
       - echo "📝 Writing image definitions file..."
       - printf '[{"name":"film-recommender","imageUri":"%s"}]' $ECR_URL:latest > imagedefinitions.json
 
 artifacts:
-
   files:
     - '**/*'
   secondary-artifacts:
