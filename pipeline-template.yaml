@@ -5,9 +5,11 @@ Parameters:
   GitHubOwner:
     Type: String
   GitHubRepo:
-    Type: String
+    Type: String  
+    Default: film-recommender
   GitHubBranch:
     Type: String
+    Default: main
   GitHubToken:
     Type: String
     NoEcho: true

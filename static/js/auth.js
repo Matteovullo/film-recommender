@@ -1,5 +1,5 @@
-const USER_POOL_ID = 'eu-west-1_fYU0jbYu2';
-const CLIENT_ID = '267g7v724os59jdh62246k6891';
+const USER_POOL_ID = 'eu-west-1_yf3XV0788';
+const CLIENT_ID = '6fsftsst1cfo3cqbn9v0nrq23u';
 const REGION = "eu-west-1";
 
 console.log("🚀 AUTH.JS CARICATO - CLIENT ID:", CLIENT_ID);

@@ -1,9 +1,0 @@
-AWSTemplateFormatVersion: '2010-09-09'
-Description: "Empty template to force stack deletion"
-Parameters:
-  DummyParameter:
-    Type: String
-    Default: "dummy"
-Resources:
-  DummyResource:
-    Type: AWS::CloudFormation::WaitConditionHandle
