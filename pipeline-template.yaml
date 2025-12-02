@@ -79,7 +79,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  # Ruolo CodePipeline (CORREZIONE CRITICA IAM: Aggiunto autoscaling:*)
+  # Ruolo CodePipeline con tutti i permessi necessari incluso ec2:DescribeLaunchTemplates
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -106,7 +106,17 @@ Resources:
                   - lambda:*
                   - sqs:*
                   - dynamodb:*
-                  - autoscaling:* # <--- RISOLVE L'ERRORE 403 SU EB/AutoScaling
+                  - autoscaling:*
+                  - ec2:DescribeLaunchTemplates
+                  - ec2:DescribeLaunchTemplateVersions
+                  - ec2:DescribeInstances
+                  - ec2:DescribeInstanceTypes
+                  - ec2:DescribeImages
+                  - ec2:DescribeSecurityGroups
+                  - ec2:DescribeSubnets
+                  - ec2:DescribeVpcs
+                  - ec2:DescribeVolumes
+                  - ec2:DescribeAccountAttributes
                 Resource: '*'
 
   CodePipeline:

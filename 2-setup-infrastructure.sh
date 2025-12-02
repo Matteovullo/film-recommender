@@ -142,23 +142,28 @@ aws iam attach-role-policy \
     --region $REGION 2>/dev/null || echo "     ✅ Policy AmazonEC2FullAccess"
 
 # Policy custom per permessi specifici
-echo "   📝 Creazione policy custom per EC2 Describe..."
+echo "   📝 Creazione policy custom per EC2 Describe LaunchTemplates..."
 aws iam put-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-name EB-EC2-Complete-Permissions \
+    --policy-name EB-EC2-LaunchTemplate-Permissions \
     --policy-document '{
         "Version": "2012-10-17",
         "Statement": [
             {
                 "Effect": "Allow",
                 "Action": [
+                    "ec2:DescribeLaunchTemplates",
+                    "ec2:DescribeLaunchTemplateVersions",
                     "ec2:DescribeImages",
                     "ec2:DescribeInstances",
                     "ec2:DescribeInstanceTypes",
-                    "ec2:DescribeLaunchTemplates",
                     "ec2:DescribeSecurityGroups",
                     "ec2:DescribeSubnets",
                     "ec2:DescribeVpcs",
+                    "ec2:DescribeVolumes",
+                    "ec2:DescribeKeyPairs",
+                    "ec2:DescribeTags",
+                    "ec2:DescribeAccountAttributes",
                     "autoscaling:*",
                     "elasticbeanstalk:*"
                 ],
@@ -320,7 +325,9 @@ echo ""
 echo "⚙️  RUOLI IAM CONFIGURATI:"
 echo "   ✅ aws-elasticbeanstalk-service-role"
 echo "   ✅ aws-elasticbeanstalk-ec2-role"
-echo "   ✅ Tutte le policy necessarie incluse AutoScalingFullAccess"
+echo "   ✅ AmazonEC2FullAccess - Risolve ec2:DescribeLaunchTemplates"
+echo "   ✅ AutoScalingFullAccess - Risolve permessi AutoScaling"
+echo "   ✅ Policy custom EB-EC2-LaunchTemplate-Permissions"
 echo ""
 echo "🚀 PRONTO PER IL PROSSIMO STEP: ./3-deploy-ecr-and-docker.sh"
 echo "======================================================"
