@@ -111,18 +111,15 @@ Description: Film Recommender CICD Pipeline with GitHub integration
 Parameters:
   GitHubOwner:
     Type: String
-    Description: GitHub repository owner
   GitHubRepo:
-    Type: String
-    Description: GitHub repository name
+    Type: String  
+    Default: film-recommender
   GitHubBranch:
     Type: String
-    Description: GitHub branch to monitor
     Default: main
   GitHubToken:
     Type: String
     NoEcho: true
-    Description: GitHub OAuth token
   EBApplicationName:
     Type: String
     Description: Elastic Beanstalk application name

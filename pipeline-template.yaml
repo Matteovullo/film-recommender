@@ -1,6 +1,6 @@
 AWSTemplateFormatVersion: '2010-09-09'
 Description: Film Recommender CICD Pipeline
-#######
+
 Parameters:
   GitHubOwner:
     Type: String
@@ -15,10 +15,13 @@ Parameters:
     NoEcho: true
   EBApplicationName:
     Type: String
+    Default: film-recommender-final
   EBEnvironmentName:
     Type: String
+    Default: film-recommender-final-env
   LambdaStackName:
     Type: String
+    Default: film-recommender-final-lambda
   PipelineVersion:
     Type: String
     Default: v1
@@ -76,6 +79,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
+  # Ruolo CodePipeline (CORREZIONE CRITICA IAM: Aggiunto autoscaling:*)
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -99,6 +103,10 @@ Resources:
                   - cloudformation:*
                   - elasticbeanstalk:*
                   - iam:PassRole
+                  - lambda:*
+                  - sqs:*
+                  - dynamodb:*
+                  - autoscaling:* # <--- RISOLVE L'ERRORE 403 SU EB/AutoScaling
                 Resource: '*'
 
   CodePipeline:
