@@ -4,7 +4,7 @@ set -e
 REGION="eu-west-1"
 APP_NAME="film-recommender-final"
 ECR_REPO="film-recommender"
-LAMBDA_STACK="$APP_NAME-lambda"
+LAMBDA_STACK="$APP_NAME-lambda-stack"
 ENV_NAME="$APP_NAME-env"
 SOLUTION_STACK="64bit Amazon Linux 2023 v4.7.2 running Docker"
 MONITORING_INTERVAL=20
@@ -36,6 +36,31 @@ for file in "${ESSENTIAL_FILES[@]}"; do
     fi
 done
 echo " [OK] Tutti i file essenziali presenti"
+
+# --- DEPLOY LAMBDA (SAM) ---
+echo "--- DEPLOY SERVIZI SERVERLESS (SAM) ---"
+
+if command -v sam &> /dev/null; then
+    echo " > Building SAM application..."
+    sam build
+    echo " > Deploying Lambda stack ($LAMBDA_STACK)..."
+    sam deploy --stack-name $LAMBDA_STACK --capabilities CAPABILITY_IAM --region $REGION --resolve-s3 --no-confirm-changeset --no-fail-on-empty-changeset
+    
+    API_URL=$(aws cloudformation describe-stacks --stack-name $LAMBDA_STACK --region $REGION --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text 2>/dev/null || echo "")
+    
+    if [ -n "$API_URL" ]; then
+        echo " [OK] API Gateway URL: $API_URL"
+        echo " > Aggiornamento URL API nei file JavaScript..."
+        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js 2>/dev/null || echo " [ATTENZIONE] Impossibile aggiornare app.js"
+        find static/js/ -name "*.bak" -delete 2>/dev/null || true
+    else
+        echo " [ATTENZIONE] API Gateway URL non disponibile. Uso il placeholder."
+        API_URL="https://g1q9d4xdfg.execute-api.eu-west-1.amazonaws.com/Prod"
+    fi
+else
+    echo " [ATTENZIONE] SAM CLI non installato - salto deploy Lambda"
+    API_URL="https://g1q9d4xdfg.execute-api.eu-west-1.amazonaws.com/Prod"
+fi
 
 # --- CONFIGURAZIONE IAM ---
 echo "--------------------------------------------------"
@@ -125,27 +150,46 @@ aws iam attach-role-policy \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
     2>/dev/null || echo " [INFO] Policy AWSElasticBeanstalkWorkerTier già attaccata"
 
-# Policy custom EC2 richieste (AGGIUNTA CRITICA per Amazon Linux 2023)
-# Risolve ec2:DescribeLaunchTemplates, ec2:DescribeImages, ecc.
+# AGGIUNTA CRITICA: Policy per Amazon Linux 2023
+echo " > Creazione policy custom per Amazon Linux 2023..."
 aws iam put-role-policy \
   --role-name aws-elasticbeanstalk-ec2-role \
   --policy-name custom-eb-ec2-describe-permissions \
   --policy-document '{
     "Version": "2012-10-17",
-    "Statement": [{
-      "Effect": "Allow",
-      "Action": [
-        "ec2:DescribeLaunchTemplates", 
-        "ec2:DescribeImages",         
-        "ec2:DescribeInstances",      
-        "ec2:DescribeTags",
-        "ec2:DescribeKeyPairs",
-        "ec2:DescribeSecurityGroups",
-        "ec2:DescribeVpcs",
-        "ec2:DescribeSubnets"
-      ],
-      "Resource": "*"
-    }]
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Action": [
+          "ec2:DescribeLaunchTemplates",
+          "ec2:DescribeImages",
+          "ec2:DescribeInstances",
+          "ec2:DescribeTags",
+          "ec2:DescribeInstanceTypes",
+          "ec2:DescribeSecurityGroups",
+          "ec2:DescribeSubnets",
+          "ec2:DescribeVpcs"
+        ],
+        "Resource": "*"
+      },
+      {
+        "Effect": "Allow", 
+        "Action": [
+          "ec2:CreateLaunchTemplate",
+          "ec2:CreateLaunchTemplateVersion",
+          "ec2:DeleteLaunchTemplate",
+          "ec2:RunInstances"
+        ],
+        "Resource": [
+          "arn:aws:ec2:*:*:launch-template/*",
+          "arn:aws:ec2:*:*:instance/*",
+          "arn:aws:ec2:*:*:volume/*",
+          "arn:aws:ec2:*:*:network-interface/*",
+          "arn:aws:ec2:*:*:security-group/*",
+          "arn:aws:ec2:*:*:subnet/*"
+        ]
+      }
+    ]
   }' \
   --region "$REGION"
 
@@ -184,7 +228,7 @@ docker container prune -f || true
 docker image prune -a -f || true
 echo " [OK] Pulizia Docker completata"
 
-# --- ELASTIC BEANSTALK CONFIG AND DEPLOYMENT ---
+# --- ELASTIC BEANSTALK CONFIG AND DEPLOYMENT (QUESTO VERRÀ AGGIORNATO ANCHE DALLA PIPELINE) ---
 echo "--------------------------------------------------"
 echo "--- SETUP ELASTIC BEANSTALK ---"
 
@@ -194,14 +238,14 @@ mkdir -p .ebextensions
 echo " > Generazione dockerrun.aws.json..."
 cat > dockerrun.aws.json <<EOL
 {
-  "AWSEBDockerrunVersion": "1",
+  "AWSEBDockerrunVersion": 1,
   "Image": {
     "Name": "$ECR_URL:latest",
-    "Update": "true"
+    "Update": true
   },
   "Ports": [
     {
-      "ContainerPort": "8000"
+      "ContainerPort": 8000
     }
   ]
 }
@@ -239,7 +283,7 @@ aws elasticbeanstalk create-application --application-name "$APP_NAME" --region 
 sleep 5
 echo " > Preparazione package EB..."
 rm -f "$APP_NAME.zip"
-zip -r "$APP_NAME.zip" dockerrun.aws.json Dockerfile application.py requirements.txt static .ebextensions -x "*.git*" "*.DS_STORE" "deploy*.sh" "*.zip" "*.log" ".aws-sam"
+zip -r "$APP_NAME.zip" dockerrun.aws.json Dockerfile application.py requirements.txt static .ebextensions -x "*.git*" "*.DS_Store" "deploy*.sh" "*.zip" "*.log" ".aws-sam"
 echo " [OK] Package ZIP creato"
 
 echo " > Upload su S3 $S3_BUCKET..."
