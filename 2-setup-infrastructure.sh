@@ -1,293 +1,50 @@
 #!/bin/bash
 set -e
 
+echo "======================================================"
+echo " 🔧 FIX COMPLETO COGNITO USER POOL"
+echo "======================================================"
+echo " Risolve: 'User pool eu-west-1_Gx1rUSirL does not exist'"
+echo "======================================================"
+
 REGION="eu-west-1"
+ACCOUNT_ID="023048164072"
 APP_NAME="film-recommender-final"
-LAMBDA_STACK="$APP_NAME-lambda-stack"
 COGNITO_USER_POOL_NAME="FilmRecommenderUserPool"
-CLIENT_NAME="WebClient"
 TEST_USER_EMAIL="test@filmrecommender.com"
 TEST_USER_PASSWORD="Password123!"
 
-echo "======================================================"
-echo " 🏗️  SETUP INFRASTRUTTURA BASE - AMBIENTE DI TEST"
-echo "======================================================"
-echo " Configurazione COMPLETA per ambiente di test"
-echo " Tutti i servizi AWS necessari per il progetto"
-echo "======================================================"
+# Colori per output
+GREEN='\033[0;32m'
+RED='\033[0;31m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
 
-ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
-S3_BUCKET_FULL="film-recommender-pipeline-$ACCOUNT_ID"
+# Funzioni di logging
+log_success() { echo -e "${GREEN}✅ $1${NC}"; }
+log_error() { echo -e "${RED}❌ $1${NC}"; }
+log_warning() { echo -e "${YELLOW}⚠️  $1${NC}"; }
+log_info() { echo -e "ℹ️  $1"; }
 
-# 1. CREA BUCKET S3 PER SAM
+# 1. VERIFICA USER POOL ESISTENTE
 echo ""
-echo "1. 📦 CREAZIONE BUCKET S3 PER SAM..."
-if ! aws s3 ls "s3://$S3_BUCKET_FULL" --region $REGION &>/dev/null; then
-    echo "   🗂️  Creazione bucket: $S3_BUCKET_FULL"
-    aws s3 mb "s3://$S3_BUCKET_FULL" --region $REGION
-    echo "   ✅ Bucket creato con successo"
-else
-    echo "   ✅ Bucket già esistente: $S3_BUCKET_FULL"
-fi
+log_info "1. Verifica User Pool Cognito..."
 
-# 2. CONFIGURAZIONE RUOLI ELASTIC BEANSTALK (CRITICO!)
-echo ""
-echo "2. ⚙️  CONFIGURAZIONE RUOLI ELASTIC BEANSTALK..."
-
-# Service Role per Elastic Beanstalk
-if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then
-    echo "   👨‍💼 Creazione Service Role..."
-    aws iam create-role \
-        --role-name aws-elasticbeanstalk-service-role \
-        --assume-role-policy-document '{
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {
-                        "Service": "elasticbeanstalk.amazonaws.com"
-                    },
-                    "Action": "sts:AssumeRole"
-                }
-            ]
-        }' \
-        --description "Elastic Beanstalk Service Role for Film Recommender" \
-        --region $REGION
-    echo "   ✅ Service Role creato"
-else
-    echo "   ✅ Service Role già esistente"
-fi
-
-# EC2 Role per Elastic Beanstalk
-if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-    echo "   💻 Creazione EC2 Role..."
-    aws iam create-role \
-        --role-name aws-elasticbeanstalk-ec2-role \
-        --assume-role-policy-document '{
-            "Version": "2012-10-17",
-            "Statement": [
-                {
-                    "Effect": "Allow",
-                    "Principal": {
-                        "Service": "ec2.amazonaws.com"
-                    },
-                    "Action": "sts:AssumeRole"
-                }
-            ]
-        }' \
-        --description "Elastic Beanstalk EC2 Role for Film Recommender" \
-        --region $REGION
-    echo "   ✅ EC2 Role creato"
-else
-    echo "   ✅ EC2 Role già esistente"
-fi
-
-# Instance Profile
-if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
-    echo "   🔧 Creazione Instance Profile..."
-    aws iam create-instance-profile \
-        --instance-profile-name aws-elasticbeanstalk-ec2-role \
-        --region $REGION
-    sleep 5
-    aws iam add-role-to-instance-profile \
-        --instance-profile-name aws-elasticbeanstalk-ec2-role \
-        --role-name aws-elasticbeanstalk-ec2-role \
-        --region $REGION
-    echo "   ✅ Instance Profile creato e associato"
-else
-    echo "   ✅ Instance Profile già esistente"
-fi
-
-# ATTACCA POLICY COMPLETE AI RUOLI EB
-echo ""
-echo "3. 🔐 CONFIGURAZIONE POLICY COMPLETE PER ELASTIC BEANSTALK..."
-
-echo "   🛡️  Configurazione Service Role policies..."
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-service-role \
-    --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkEnhancedHealth \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy EnhancedHealth"
-
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-service-role \
-    --policy-arn arn:aws:iam::aws:policy/service-role/AWSElasticBeanstalkService \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy Service"
-
-echo "   🛡️  Configurazione EC2 Role policies..."
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy WebTier"
-
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkMulticontainerDocker \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy MulticontainerDocker"
-
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy WorkerTier"
-
-# POLICY CRITICA: AutoScaling e EC2 completi
-echo "   🚨 Aggiunta policy CRITICHE per AutoScaling e EC2..."
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-arn arn:aws:iam::aws:policy/AutoScalingFullAccess \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy AutoScalingFullAccess"
-
-aws iam attach-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-arn arn:aws:iam::aws:policy/AmazonEC2FullAccess \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy AmazonEC2FullAccess"
-
-# Policy custom per permessi specifici
-echo "   📝 Creazione policy custom per EC2 Describe LaunchTemplates..."
-aws iam put-role-policy \
-    --role-name aws-elasticbeanstalk-ec2-role \
-    --policy-name EB-EC2-LaunchTemplate-Permissions \
-    --policy-document '{
-        "Version": "2012-10-17",
-        "Statement": [
-            {
-                "Effect": "Allow",
-                "Action": [
-                    "ec2:DescribeLaunchTemplates",
-                    "ec2:DescribeLaunchTemplateVersions",
-                    "ec2:DescribeImages",
-                    "ec2:DescribeInstances",
-                    "ec2:DescribeInstanceTypes",
-                    "ec2:DescribeSecurityGroups",
-                    "ec2:DescribeSubnets",
-                    "ec2:DescribeVpcs",
-                    "ec2:DescribeVolumes",
-                    "ec2:DescribeKeyPairs",
-                    "ec2:DescribeTags",
-                    "ec2:DescribeAccountAttributes",
-                    "autoscaling:*",
-                    "elasticbeanstalk:*"
-                ],
-                "Resource": "*"
-            }
-        ]
-    }' \
-    --region $REGION 2>/dev/null || echo "     ✅ Policy custom creata"
-
-echo "   ⏳ Attesa propagazione IAM (15 secondi)..."
-sleep 15
-
-# 4. DEPLOY STACK SAM (Lambda, API Gateway, DynamoDB)
-echo ""
-echo "4. ⚡ DEPLOY STACK SERVERLESS (SAM)..."
-
-echo "   🔨 Building SAM application..."
-sam build --template-file template.yaml
-
-echo "   🚀 Deploying Lambda stack: $LAMBDA_STACK"
-sam deploy \
-    --template-file .aws-sam/build/template.yaml \
-    --stack-name $LAMBDA_STACK \
-    --s3-bucket $S3_BUCKET_FULL \
-    --capabilities CAPABILITY_IAM CAPABILITY_AUTO_EXPAND \
-    --region $REGION \
-    --no-confirm-changeset \
-    --no-fail-on-empty-changeset
-
-# 5. RECUPERA URL API (CRITICO - COME VECCHIO DEPLOY)
-echo ""
-echo "5. 🔗 RECUPERO URL API GATEWAY..."
-API_URL=$(aws cloudformation describe-stacks --stack-name $LAMBDA_STACK --region $REGION --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text 2>/dev/null || echo "")
-
-if [ -n "$API_URL" ]; then
-    echo "   ✅ API Gateway URL: $API_URL"
-    
-    # 6. AGGIORNAMENTO FILE STATICI (CRITICO - SOLO app.js COME VECCHIO DEPLOY)
-    echo ""
-    echo "6. 🔄 AGGIORNAMENTO FILE DI CONFIGURAZIONE..."
-    
-    # AGGIORNA SOLO app.js (come faceva il vecchio deploy)
-    if [ -f "static/js/app.js" ]; then
-        echo "   🔄 Aggiornamento static/js/app.js..."
-        # Crea backup
-        cp static/js/app.js static/js/app.js.backup
-        
-        # Aggiorna l'URL API (cerca diverse possibili sintassi)
-        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js
-        sed -i.bak "s|const API_BASE_URL =.*|const API_BASE_URL = '$API_URL';|g" static/js/app.js
-        sed -i.bak "s|var API_BASE_URL =.*|var API_BASE_URL = '$API_URL';|g" static/js/app.js
-        
-        # Verifica l'aggiornamento
-        if grep -q "$API_URL" static/js/app.js; then
-            echo "   ✅ app.js aggiornato correttamente"
-        else
-            echo "   ⚠️  Impossibile aggiornare app.js automaticamente"
-            echo "   ℹ️  Aggiorna manualmente: let API_BASE_URL = '$API_URL';"
-        fi
-    else
-        echo "   ⚠️  File app.js non trovato"
-    fi
-    
-    # AGGIORNA application.py con URL API (OPZIONALE ma utile)
-    if [ -f "application.py" ]; then
-        echo "   🔄 Aggiornamento application.py..."
-        # Cerca e sostituisci API_GATEWAY_URL
-        if grep -q "API_GATEWAY_URL" application.py; then
-            sed -i.bak "s|API_GATEWAY_URL =.*|API_GATEWAY_URL = '$API_URL'|g" application.py
-            echo "   ✅ application.py aggiornato"
-        else
-            # Aggiungi dopo gli imports
-            IMPORT_LINE=$(grep -n "^import\|^from" application.py | tail -1 | cut -d: -f1)
-            if [ -n "$IMPORT_LINE" ]; then
-                sed -i.bak "${IMPORT_LINE}a\\
-API_GATEWAY_URL = '$API_URL'
-" application.py
-                echo "   ✅ API_GATEWAY_URL aggiunto a application.py"
-            fi
-        fi
-    fi
-    
-else
-    echo "   ⚠️  API Gateway URL non disponibile"
-    echo "   ℹ️  Uso placeholder temporaneo"
-    API_URL="https://api.example.com"
-fi
-
-# 7. CREA COGNITO USER POOL (MA NON AGGIORNARE auth.js - È GIÀ CORRETTO)
-echo ""
-echo "7. 🔐 CONFIGURAZIONE COGNITO USER POOL..."
-
-# Cerca User Pool esistente
 EXISTING_POOL=$(aws cognito-idp list-user-pools --region $REGION --max-results 20 \
-    --query "UserPools[?contains(Name, 'FilmRecommender')].Id" --output text 2>/dev/null || echo "")
+    --query "UserPools[?contains(Name, 'FilmRecommender') || contains(Name, '$COGNITO_USER_POOL_NAME')].Id" \
+    --output text 2>/dev/null || echo "")
 
 if [ -n "$EXISTING_POOL" ]; then
-    echo "   ✅ User Pool già esistente: $EXISTING_POOL"
     USER_POOL_ID="$EXISTING_POOL"
-    
-    # Recupera Client ID esistente
-    CLIENT_ID=$(aws cognito-idp list-user-pool-clients \
-        --user-pool-id $USER_POOL_ID \
-        --region $REGION \
-        --query 'UserPoolClients[0].ClientId' \
-        --output text 2>/dev/null || echo "")
-        
-    if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
-        echo "   ✅ Client ID già esistente: $CLIENT_ID"
-    else
-        echo "   ℹ️  Creazione nuovo Client..."
-        CLIENT_ID=$(aws cognito-idp create-user-pool-client \
-            --user-pool-id $USER_POOL_ID \
-            --client-name "$CLIENT_NAME" \
-            --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH" "ALLOW_USER_SRP_AUTH" "ALLOW_REFRESH_TOKEN_AUTH" \
-            --no-generate-secret \
-            --region $REGION \
-            --query 'UserPoolClient.ClientId' --output text)
-        echo "   ✅ Nuovo Client ID: $CLIENT_ID"
-    fi
+    POOL_NAME=$(aws cognito-idp describe-user-pool --user-pool-id $USER_POOL_ID --region $REGION --query 'UserPool.Name' --output text 2>/dev/null || echo "Unknown")
+    log_success "Trovato User Pool esistente: $POOL_NAME ($USER_POOL_ID)"
 else
-    echo "   🗂️  Creazione nuovo User Pool..."
+    log_warning "Nessun User Pool trovato, creazione nuovo..."
     
-    # Crea User Pool
+    # 2. CREA NUOVO USER POOL
+    echo ""
+    log_info "2. Creazione nuovo User Pool..."
+    
     USER_POOL_ID=$(aws cognito-idp create-user-pool \
         --pool-name $COGNITO_USER_POOL_NAME \
         --region $REGION \
@@ -308,104 +65,291 @@ else
                 "Required": true
             }
         ]' \
-        --query 'UserPool.Id' --output text)
+        --query 'UserPool.Id' --output text 2>/dev/null)
+    
+    if [ -z "$USER_POOL_ID" ]; then
+        log_error "Impossibile creare User Pool!"
+        exit 1
+    fi
+    
+    log_success "Nuovo User Pool creato: $USER_POOL_ID"
+fi
 
-    echo "   ✅ User Pool ID: $USER_POOL_ID"
+# 3. VERIFICA/CREA CLIENT
+echo ""
+log_info "3. Configurazione Client Cognito..."
 
-    # Crea Client
+CLIENT_ID=$(aws cognito-idp list-user-pool-clients \
+    --user-pool-id $USER_POOL_ID \
+    --region $REGION \
+    --max-results 10 \
+    --query 'UserPoolClients[0].ClientId' \
+    --output text 2>/dev/null || echo "")
+
+if [ -z "$CLIENT_ID" ] || [ "$CLIENT_ID" == "None" ]; then
+    log_warning "Nessun Client trovato, creazione nuovo..."
+    
     CLIENT_ID=$(aws cognito-idp create-user-pool-client \
         --user-pool-id $USER_POOL_ID \
-        --client-name "$CLIENT_NAME" \
+        --client-name "WebClient" \
         --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH" "ALLOW_USER_SRP_AUTH" "ALLOW_REFRESH_TOKEN_AUTH" \
         --no-generate-secret \
         --region $REGION \
-        --query 'UserPoolClient.ClientId' --output text)
-
-    echo "   ✅ Client ID: $CLIENT_ID"
+        --query 'UserPoolClient.ClientId' --output text 2>/dev/null)
     
-    # NOTA: NON aggiorniamo auth.js automaticamente - i valori sono già hardcoded e corretti
-    echo "   ℹ️  I valori Cognito in auth.js sono già corretti:"
-    echo "      USER_POOL_ID: eu-west-1_Gx1rUSirL"
-    echo "      CLIENT_ID: 3ft1kpl7bmvbm3ma2r6ghl6tei"
+    if [ -n "$CLIENT_ID" ]; then
+        log_success "Nuovo Client creato: $CLIENT_ID"
+    else
+        log_error "Impossibile creare Client!"
+        exit 1
+    fi
+else
+    log_success "Client esistente trovato: $CLIENT_ID"
 fi
 
-# 8. CREA UTENTE TEST
+# 4. CREA/AGGIORNA UTENTE TEST
 echo ""
-echo "8. 👤 CREAZIONE UTENTE DI TEST..."
-if [ -n "$USER_POOL_ID" ]; then
+log_info "4. Configurazione utente test..."
+
+# Verifica se l'utente esiste già
+USER_EXISTS=$(aws cognito-idp admin-get-user \
+    --user-pool-id $USER_POOL_ID \
+    --username "$TEST_USER_EMAIL" \
+    --region $REGION 2>/dev/null && echo "yes" || echo "no")
+
+if [ "$USER_EXISTS" = "no" ]; then
+    log_info "Creazione utente test: $TEST_USER_EMAIL"
+    
     aws cognito-idp admin-create-user \
         --user-pool-id $USER_POOL_ID \
         --username "$TEST_USER_EMAIL" \
         --user-attributes Name="email",Value="$TEST_USER_EMAIL" Name="email_verified",Value="true" \
         --temporary-password "$TEST_USER_PASSWORD" \
         --message-action SUPPRESS \
-        --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Utente già esistente o errore non critico"
-
+        --region $REGION > /dev/null 2>&1 || log_warning "Possibile errore creazione utente"
+    
+    # Imposta password permanente
     aws cognito-idp admin-set-user-password \
         --user-pool-id $USER_POOL_ID \
         --username "$TEST_USER_EMAIL" \
         --password "$TEST_USER_PASSWORD" \
         --permanent \
-        --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Impostazione password non riuscita"
-
-    echo "   ✅ Utente test: $TEST_USER_EMAIL / $TEST_USER_PASSWORD"
+        --region $REGION > /dev/null 2>&1 || log_warning "Possibile errore impostazione password"
+    
+    log_success "Utente test creato"
 else
-    echo "   ⚠️  User Pool non disponibile, skippo creazione utente test"
+    log_success "Utente test già esistente"
 fi
 
-# 9. AGGIORNAMENTO FINALE E PULIZIA
+# 5. AGGIORNAMENTO FILE AUTH.JS (CRITICO!)
 echo ""
-echo "9. 📝 VERIFICA FINALE CONFIGURAZIONI..."
+log_info "5. Aggiornamento file di configurazione..."
 
-# Verifica che i file siano corretti
-echo "   🔍 Controllo app.js..."
-if grep -q "API_BASE_URL = '$API_URL'" static/js/app.js 2>/dev/null; then
-    echo "   ✅ app.js configurato correttamente"
-else
-    echo "   ⚠️  app.js potrebbe non essere aggiornato"
-    echo "   ℹ️  Controlla manualmente: static/js/app.js"
-fi
-
-echo "   🔍 Controllo auth.js..."
+# AGGIORNA AUTH.JS
 if [ -f "static/js/auth.js" ]; then
-    CURRENT_POOL=$(grep "USER_POOL_ID = " static/js/auth.js | cut -d\' -f2)
-    CURRENT_CLIENT=$(grep "CLIENT_ID = " static/js/auth.js | cut -d\' -f2)
-    echo "   ✅ auth.js contiene:"
-    echo "      USER_POOL_ID: $CURRENT_POOL"
-    echo "      CLIENT_ID: $CURRENT_CLIENT"
+    log_info "Aggiornamento static/js/auth.js..."
+    
+    # Crea backup
+    TIMESTAMP=$(date +%Y%m%d%H%M%S)
+    cp static/js/auth.js "static/js/auth.js.backup-$TIMESTAMP"
+    
+    # Aggiorna USER_POOL_ID
+    if grep -q "USER_POOL_ID = " static/js/auth.js; then
+        sed -i.bak "s|const USER_POOL_ID = '.*';|const USER_POOL_ID = '$USER_POOL_ID';|g" static/js/auth.js
+        log_success "USER_POOL_ID aggiornato: $USER_POOL_ID"
+    else
+        log_error "Variabile USER_POOL_ID non trovata in auth.js!"
+    fi
+    
+    # Aggiorna CLIENT_ID
+    if grep -q "CLIENT_ID = " static/js/auth.js; then
+        sed -i.bak "s|const CLIENT_ID = '.*';|const CLIENT_ID = '$CLIENT_ID';|g" static/js/auth.js
+        log_success "CLIENT_ID aggiornato: $CLIENT_ID"
+    else
+        log_error "Variabile CLIENT_ID non trovata in auth.js!"
+    fi
+    
+    # Pulisci backup temporanei
+    rm -f static/js/auth.js.bak 2>/dev/null || true
+    
+    # Verifica aggiornamento
+    echo ""
+    log_info "Verifica aggiornamento auth.js:"
+    grep "USER_POOL_ID = " static/js/auth.js
+    grep "CLIENT_ID = " static/js/auth.js
+else
+    log_error "File static/js/auth.js non trovato!"
+    exit 1
 fi
 
-echo "   🔍 Controllo application.py..."
-if grep -q "API_GATEWAY_URL = " application.py 2>/dev/null; then
-    CURRENT_API=$(grep "API_GATEWAY_URL = " application.py | cut -d\' -f2)
-    echo "   ✅ application.py contiene API_GATEWAY_URL: $CURRENT_API"
+# 6. AGGIORNA APPLICATION.PY (opzionale ma utile)
+echo ""
+log_info "6. Aggiornamento application.py..."
+
+if [ -f "application.py" ]; then
+    # Rimuovi vecchie configurazioni Cognito se esistono
+    sed -i.bak '/COGNITO_USER_POOL_ID/d' application.py 2>/dev/null || true
+    sed -i.bak '/COGNITO_CLIENT_ID/d' application.py 2>/dev/null || true
+    sed -i.bak '/COGNITO_REGION/d' application.py 2>/dev/null || true
+    
+    # Aggiungi nuove configurazioni dopo gli imports
+    IMPORT_LINE=$(grep -n "^import\|^from" application.py | tail -1 | cut -d: -f1 2>/dev/null || echo "0")
+    
+    if [ "$IMPORT_LINE" -gt 0 ]; then
+        sed -i.bak "${IMPORT_LINE}a\\
+# Cognito Configuration (Auto-generated by fix script)\\
+COGNITO_USER_POOL_ID = '$USER_POOL_ID'\\
+COGNITO_CLIENT_ID = '$CLIENT_ID'\\
+COGNITO_REGION = '$REGION'\\
+" application.py
+    else
+        sed -i.bak "1i\\
+# Cognito Configuration (Auto-generated by fix script)\\
+COGNITO_USER_POOL_ID = '$USER_POOL_ID'\\
+COGNITO_CLIENT_ID = '$CLIENT_ID'\\
+COGNITO_REGION = '$REGION'\\
+" application.py
+    fi
+    
+    rm -f application.py.bak 2>/dev/null || true
+    log_success "application.py aggiornato"
+else
+    log_warning "File application.py non trovato (skippato)"
 fi
 
-# Pulisci file backup
-find . -name "*.bak" -delete 2>/dev/null || true
-find . -name "*.backup" -delete 2>/dev/null || true
+# 7. REBUILD E REDEPLOY DOCKER
+echo ""
+log_info "7. Preparazione per rebuild Docker..."
+
+ECR_URL="$ACCOUNT_ID.dkr.ecr.$REGION.amazonaws.com/film-recommender"
+
+# Verifica che ECR esista
+if aws ecr describe-repositories --repository-names film-recommender --region $REGION &>/dev/null; then
+    log_success "Repository ECR trovato: $ECR_URL"
+    
+    echo ""
+    log_info "Per completare il fix, esegui questi comandi:"
+    echo ""
+    echo "1. Login ECR:"
+    echo "   aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $ECR_URL"
+    echo ""
+    echo "2. Build immagine Docker:"
+    echo "   docker build -t film-recommender ."
+    echo ""
+    echo "3. Tag e push:"
+    echo "   docker tag film-recommender:latest $ECR_URL:latest"
+    echo "   docker push $ECR_URL:latest"
+    echo ""
+    echo "4. Aggiorna Elastic Beanstalk:"
+    echo "   aws elasticbeanstalk create-application-version \\"
+    echo "     --application-name '$APP_NAME' \\"
+    echo "     --region '$REGION' \\"
+    echo "     --version-label 'v-cognito-fix-$(date +%Y%m%d%H%M%S)' \\"
+    echo "     --source-bundle S3Bucket='elasticbeanstalk-$REGION-$ACCOUNT_ID',S3Key='deployment.zip'"
+    echo ""
+    echo "   aws elasticbeanstalk update-environment \\"
+    echo "     --application-name '$APP_NAME' \\"
+    echo "     --environment-name '$APP_NAME-env' \\"
+    echo "     --version-label 'v-cognito-fix-$(date +%Y%m%d%H%M%S)' \\"
+    echo "     --region '$REGION'"
+    echo ""
+else
+    log_warning "Repository ECR non trovato, potrebbe essere necessario ricrearlo"
+fi
+
+# 8. CREA SCRIPT AUTOMATICO PER REDEPLOY
+echo ""
+log_info "8. Creazione script automatico per redeploy..."
+
+cat > redeploy-with-cognito-fix.sh << EOF
+#!/bin/bash
+set -e
+
+echo "======================================================"
+echo " 🚀 REDEPLOY CON FIX COGNITO"
+echo "======================================================"
+
+REGION="eu-west-1"
+ECR_URL="023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender"
+APP_NAME="film-recommender-final"
+
+# Login ECR
+echo "1. Login ECR..."
+aws ecr get-login-password --region \$REGION | docker login --username AWS --password-stdin \$ECR_URL
+
+# Build
+echo "2. Build immagine Docker..."
+docker build -t film-recommender .
+
+# Tag e push
+echo "3. Tagging e push..."
+docker tag film-recommender:latest \$ECR_URL:latest
+docker push \$ECR_URL:latest
+
+# Crea nuova versione EB
+VERSION_LABEL="v-cognito-fix-\$(date +%Y%m%d%H%M%S)"
+S3_BUCKET="elasticbeanstalk-\$REGION-023048164072"
+
+echo "4. Creazione versione Elastic Beanstalk: \$VERSION_LABEL"
+aws elasticbeanstalk create-application-version \\
+  --application-name "\$APP_NAME" \\
+  --region "\$REGION" \\
+  --version-label "\$VERSION_LABEL" \\
+  --source-bundle S3Bucket="\$S3_BUCKET",S3Key="deployment.zip"
+
+# Aggiorna environment
+echo "5. Aggiornamento environment..."
+aws elasticbeanstalk update-environment \\
+  --application-name "\$APP_NAME" \\
+  --environment-name "\$APP_NAME-env" \\
+  --version-label "\$VERSION_LABEL" \\
+  --region "\$REGION"
 
 echo ""
 echo "======================================================"
-echo " ✅ INFRASTRUTTURA BASE COMPLETATA"
+echo " ✅ REDEPLOY AVVIATO"
+echo "======================================================"
+echo "Monitora lo stato con:"
+echo "aws elasticbeanstalk describe-environments \\"
+echo "  --application-name \$APP_NAME \\"
+echo "  --environment-names \$APP_NAME-env \\"
+echo "  --region \$REGION \\"
+echo "  --query 'Environments[0].{Status:Status,Health:Health,Version:VersionLabel}'"
+echo ""
+echo "🌐 URL: http://film-recommender-final-env.eba-pzkfbqzv.eu-west-1.elasticbeanstalk.com"
+echo "======================================================"
+EOF
+
+chmod +x redeploy-with-cognito-fix.sh
+log_success "Script creato: redeploy-with-cognito-fix.sh"
+
+# 9. RIASSUNTO FINALE
+echo ""
+echo "======================================================"
+echo " ✅ FIX COGNITO COMPLETATO"
 echo "======================================================"
 echo ""
-echo "📋 SERVIZI CONFIGURATI:"
-echo "   ✅ S3 Bucket: $S3_BUCKET_FULL"
-echo "   ✅ Lambda Stack: $LAMBDA_STACK"
-echo "   ✅ API Gateway: $API_URL"
-echo "   ✅ Cognito User Pool: $USER_POOL_ID"
-echo "   ✅ Cognito Client: $CLIENT_ID"
-echo ""
-echo "🔐 CREDENZIALI TEST:"
-echo "   📧 Email: $TEST_USER_EMAIL"
-echo "   🔑 Password: $TEST_USER_PASSWORD"
+echo "📋 CONFIGURAZIONI APPLICATE:"
+echo "   🔐 Cognito User Pool: $USER_POOL_ID"
+echo "   🔑 Cognito Client: $CLIENT_ID"
+echo "   👤 Utente test: $TEST_USER_EMAIL"
+echo "   🔓 Password: $TEST_USER_PASSWORD"
 echo ""
 echo "📁 FILE AGGIORNATI:"
-echo "   ✅ static/js/app.js - URL API Gateway"
-echo "   ✅ application.py - URL API Gateway"
+echo "   ✅ static/js/auth.js (backup: static/js/auth.js.backup-$TIMESTAMP)"
+if [ -f "application.py" ]; then
+    echo "   ✅ application.py"
+fi
 echo ""
-echo "ℹ️  NOTA: auth.js non è stato modificato - usa i valori hardcoded già presenti"
+echo "🚀 PER COMPLETARE IL FIX:"
+echo "   1. Esegui: ./redeploy-with-cognito-fix.sh"
+echo "   2. Attendi 5-10 minuti per il deploy"
 echo ""
-echo "🚀 PRONTO PER IL PROSSIMO STEP: ./3-deploy-ecr-and-docker.sh"
+echo "🔍 PER VERIFICARE:"
+echo "   Visita: http://film-recommender-final-env.eba-pzkfbqzv.eu-west-1.elasticbeanstalk.com"
+echo "   Usa credenziali: $TEST_USER_EMAIL / $TEST_USER_PASSWORD"
+echo ""
+echo "⚠️  NOTA IMPORTANTE:"
+echo "   Se continui a vedere errori, potrebbe essere necessario"
+echo "   cancellare la cache del browser o usare la modalità privata"
 echo "======================================================"
