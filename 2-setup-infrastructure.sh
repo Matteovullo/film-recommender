@@ -409,4 +409,3 @@ echo "ℹ️  NOTA: auth.js non è stato modificato - usa i valori hardcoded gi�
 echo ""
 echo "🚀 PRONTO PER IL PROSSIMO STEP: ./3-deploy-ecr-and-docker.sh"
 echo "======================================================"
-[file content end]
