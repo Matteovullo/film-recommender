@@ -28,6 +28,10 @@ echo "FASE 3: Setup ECR e Docker..."
 echo "FASE 4: Deploy eb..."
 ./4-deploy-eb.sh
 
+git add .
+git commit -m "update pipeline"
+git push -u origin main
+
 # FASE 4: Pipeline
 echo "FASE 5: Creazione pipeline CI/CD..."
 ./5-create-pipeline.sh
