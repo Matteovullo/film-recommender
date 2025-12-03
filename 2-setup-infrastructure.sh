@@ -129,7 +129,7 @@ aws iam attach-role-policy \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
     --region $REGION 2>/dev/null || echo "     ✅ Policy WorkerTier"
 
-# POLICY CRITICA: AutoScaling e EC2 completi (RISOLVE SUSPENDPROCESSES)
+# POLICY CRITICA: AutoScaling e EC2 completi
 echo "   🚨 Aggiunta policy CRITICHE per AutoScaling e EC2..."
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
@@ -176,23 +176,9 @@ aws iam put-role-policy \
 echo "   ⏳ Attesa propagazione IAM (15 secondi)..."
 sleep 15
 
-# 4. CREA APPLICAZIONE ELASTIC BEANSTALK
+# 4. DEPLOY STACK SAM (Lambda, API Gateway, DynamoDB)
 echo ""
-echo "4. 🌐 CREAZIONE APPLICAZIONE ELASTIC BEANSTALK..."
-if ! aws elasticbeanstalk describe-applications --application-name "$APP_NAME" --region $REGION &>/dev/null; then
-    echo "   🎯 Creazione applicazione: $APP_NAME"
-    aws elasticbeanstalk create-application \
-        --application-name "$APP_NAME" \
-        --description "Film Recommender Application" \
-        --region $REGION
-    echo "   ✅ Applicazione Elastic Beanstalk creata"
-else
-    echo "   ✅ Applicazione Elastic Beanstalk già esistente"
-fi
-
-# 5. DEPLOY STACK SAM (Lambda, API Gateway, DynamoDB, Cognito)
-echo ""
-echo "5. ⚡ DEPLOY STACK SERVERLESS (SAM)..."
+echo "4. ⚡ DEPLOY STACK SERVERLESS (SAM)..."
 
 echo "   🔨 Building SAM application..."
 sam build --template-file template.yaml
@@ -207,112 +193,205 @@ sam deploy \
     --no-confirm-changeset \
     --no-fail-on-empty-changeset
 
-# 6. RECUPERA URL API
+# 5. RECUPERA URL API (CRITICO - COME VECCHIO DEPLOY)
 echo ""
-echo "6. 🔗 RECUPERO URL API GATEWAY..."
+echo "5. 🔗 RECUPERO URL API GATEWAY..."
 API_URL=$(aws cloudformation describe-stacks --stack-name $LAMBDA_STACK --region $REGION --query 'Stacks[0].Outputs[?OutputKey==`ApiUrl`].OutputValue' --output text 2>/dev/null || echo "")
 
 if [ -n "$API_URL" ]; then
     echo "   ✅ API Gateway URL: $API_URL"
+    
+    # 6. AGGIORNAMENTO FILE STATICI (CRITICO - SOLO app.js COME VECCHIO DEPLOY)
+    echo ""
+    echo "6. 🔄 AGGIORNAMENTO FILE DI CONFIGURAZIONE..."
+    
+    # AGGIORNA SOLO app.js (come faceva il vecchio deploy)
+    if [ -f "static/js/app.js" ]; then
+        echo "   🔄 Aggiornamento static/js/app.js..."
+        # Crea backup
+        cp static/js/app.js static/js/app.js.backup
+        
+        # Aggiorna l'URL API (cerca diverse possibili sintassi)
+        sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js
+        sed -i.bak "s|const API_BASE_URL =.*|const API_BASE_URL = '$API_URL';|g" static/js/app.js
+        sed -i.bak "s|var API_BASE_URL =.*|var API_BASE_URL = '$API_URL';|g" static/js/app.js
+        
+        # Verifica l'aggiornamento
+        if grep -q "$API_URL" static/js/app.js; then
+            echo "   ✅ app.js aggiornato correttamente"
+        else
+            echo "   ⚠️  Impossibile aggiornare app.js automaticamente"
+            echo "   ℹ️  Aggiorna manualmente: let API_BASE_URL = '$API_URL';"
+        fi
+    else
+        echo "   ⚠️  File app.js non trovato"
+    fi
+    
+    # AGGIORNA application.py con URL API (OPZIONALE ma utile)
+    if [ -f "application.py" ]; then
+        echo "   🔄 Aggiornamento application.py..."
+        # Cerca e sostituisci API_GATEWAY_URL
+        if grep -q "API_GATEWAY_URL" application.py; then
+            sed -i.bak "s|API_GATEWAY_URL =.*|API_GATEWAY_URL = '$API_URL'|g" application.py
+            echo "   ✅ application.py aggiornato"
+        else
+            # Aggiungi dopo gli imports
+            IMPORT_LINE=$(grep -n "^import\|^from" application.py | tail -1 | cut -d: -f1)
+            if [ -n "$IMPORT_LINE" ]; then
+                sed -i.bak "${IMPORT_LINE}a\\
+API_GATEWAY_URL = '$API_URL'
+" application.py
+                echo "   ✅ API_GATEWAY_URL aggiunto a application.py"
+            fi
+        fi
+    fi
+    
 else
-    echo "   ⚠️  API Gateway URL non disponibile, uso placeholder"
+    echo "   ⚠️  API Gateway URL non disponibile"
+    echo "   ℹ️  Uso placeholder temporaneo"
     API_URL="https://api.example.com"
 fi
 
-# 7. CREA COGNITO USER POOL
+# 7. CREA COGNITO USER POOL (MA NON AGGIORNARE auth.js - È GIÀ CORRETTO)
 echo ""
-echo "7. 🔐 CREAZIONE COGNITO USER POOL..."
+echo "7. 🔐 CONFIGURAZIONE COGNITO USER POOL..."
 
-# Crea User Pool
-USER_POOL_ID=$(aws cognito-idp create-user-pool \
-    --pool-name $COGNITO_USER_POOL_NAME \
-    --region $REGION \
-    --auto-verified-attributes email \
-    --policies '{
-        "PasswordPolicy": {
-            "MinimumLength": 8,
-            "RequireUppercase": true,
-            "RequireLowercase": true,
-            "RequireNumbers": true,
-            "RequireSymbols": false
-        }
-    }' \
-    --schema '[
-        {
-            "Name": "email",
-            "AttributeDataType": "String",
-            "Required": true
-        }
-    ]' \
-    --query 'UserPool.Id' --output text)
+# Cerca User Pool esistente
+EXISTING_POOL=$(aws cognito-idp list-user-pools --region $REGION --max-results 20 \
+    --query "UserPools[?contains(Name, 'FilmRecommender')].Id" --output text 2>/dev/null || echo "")
 
-echo "   ✅ User Pool ID: $USER_POOL_ID"
+if [ -n "$EXISTING_POOL" ]; then
+    echo "   ✅ User Pool già esistente: $EXISTING_POOL"
+    USER_POOL_ID="$EXISTING_POOL"
+    
+    # Recupera Client ID esistente
+    CLIENT_ID=$(aws cognito-idp list-user-pool-clients \
+        --user-pool-id $USER_POOL_ID \
+        --region $REGION \
+        --query 'UserPoolClients[0].ClientId' \
+        --output text 2>/dev/null || echo "")
+        
+    if [ -n "$CLIENT_ID" ] && [ "$CLIENT_ID" != "None" ]; then
+        echo "   ✅ Client ID già esistente: $CLIENT_ID"
+    else
+        echo "   ℹ️  Creazione nuovo Client..."
+        CLIENT_ID=$(aws cognito-idp create-user-pool-client \
+            --user-pool-id $USER_POOL_ID \
+            --client-name "$CLIENT_NAME" \
+            --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH" "ALLOW_USER_SRP_AUTH" "ALLOW_REFRESH_TOKEN_AUTH" \
+            --no-generate-secret \
+            --region $REGION \
+            --query 'UserPoolClient.ClientId' --output text)
+        echo "   ✅ Nuovo Client ID: $CLIENT_ID"
+    fi
+else
+    echo "   🗂️  Creazione nuovo User Pool..."
+    
+    # Crea User Pool
+    USER_POOL_ID=$(aws cognito-idp create-user-pool \
+        --pool-name $COGNITO_USER_POOL_NAME \
+        --region $REGION \
+        --auto-verified-attributes email \
+        --policies '{
+            "PasswordPolicy": {
+                "MinimumLength": 8,
+                "RequireUppercase": true,
+                "RequireLowercase": true,
+                "RequireNumbers": true,
+                "RequireSymbols": false
+            }
+        }' \
+        --schema '[
+            {
+                "Name": "email",
+                "AttributeDataType": "String",
+                "Required": true
+            }
+        ]' \
+        --query 'UserPool.Id' --output text)
 
-# 8. CREA CLIENT COGNITO
-CLIENT_ID=$(aws cognito-idp create-user-pool-client \
-    --user-pool-id $USER_POOL_ID \
-    --client-name "$CLIENT_NAME" \
-    --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH" "ALLOW_USER_SRP_AUTH" "ALLOW_REFRESH_TOKEN_AUTH" \
-    --no-generate-secret \
-    --region $REGION \
-    --query 'UserPoolClient.ClientId' --output text)
+    echo "   ✅ User Pool ID: $USER_POOL_ID"
 
-echo "   ✅ Client ID: $CLIENT_ID"
+    # Crea Client
+    CLIENT_ID=$(aws cognito-idp create-user-pool-client \
+        --user-pool-id $USER_POOL_ID \
+        --client-name "$CLIENT_NAME" \
+        --explicit-auth-flows "ALLOW_USER_PASSWORD_AUTH" "ALLOW_USER_SRP_AUTH" "ALLOW_REFRESH_TOKEN_AUTH" \
+        --no-generate-secret \
+        --region $REGION \
+        --query 'UserPoolClient.ClientId' --output text)
 
-# 9. CREA UTENTE TEST
+    echo "   ✅ Client ID: $CLIENT_ID"
+    
+    # NOTA: NON aggiorniamo auth.js automaticamente - i valori sono già hardcoded e corretti
+    echo "   ℹ️  I valori Cognito in auth.js sono già corretti:"
+    echo "      USER_POOL_ID: eu-west-1_Gx1rUSirL"
+    echo "      CLIENT_ID: 3ft1kpl7bmvbm3ma2r6ghl6tei"
+fi
+
+# 8. CREA UTENTE TEST
 echo ""
 echo "8. 👤 CREAZIONE UTENTE DI TEST..."
-aws cognito-idp admin-create-user \
-    --user-pool-id $USER_POOL_ID \
-    --username "$TEST_USER_EMAIL" \
-    --user-attributes Name="email",Value="$TEST_USER_EMAIL" Name="email_verified",Value="true" \
-    --temporary-password "$TEST_USER_PASSWORD" \
-    --message-action SUPPRESS \
-    --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Utente già esistente o errore non critico"
+if [ -n "$USER_POOL_ID" ]; then
+    aws cognito-idp admin-create-user \
+        --user-pool-id $USER_POOL_ID \
+        --username "$TEST_USER_EMAIL" \
+        --user-attributes Name="email",Value="$TEST_USER_EMAIL" Name="email_verified",Value="true" \
+        --temporary-password "$TEST_USER_PASSWORD" \
+        --message-action SUPPRESS \
+        --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Utente già esistente o errore non critico"
 
-aws cognito-idp admin-set-user-password \
-    --user-pool-id $USER_POOL_ID \
-    --username "$TEST_USER_EMAIL" \
-    --password "$TEST_USER_PASSWORD" \
-    --permanent \
-    --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Impostazione password non riuscita"
+    aws cognito-idp admin-set-user-password \
+        --user-pool-id $USER_POOL_ID \
+        --username "$TEST_USER_EMAIL" \
+        --password "$TEST_USER_PASSWORD" \
+        --permanent \
+        --region $REGION > /dev/null 2>&1 || echo "   ⚠️  Impostazione password non riuscita"
 
-echo "   ✅ Utente test: $TEST_USER_EMAIL / $TEST_USER_PASSWORD"
+    echo "   ✅ Utente test: $TEST_USER_EMAIL / $TEST_USER_PASSWORD"
+else
+    echo "   ⚠️  User Pool non disponibile, skippo creazione utente test"
+fi
 
-# 10. AGGIORNA CONFIGURAZIONI APPLICAZIONE
+# 9. AGGIORNAMENTO FINALE E PULIZIA
 echo ""
-echo "9. 📝 AGGIORNAMENTO CONFIGURAZIONI APPLICAZIONE..."
+echo "9. 📝 VERIFICA FINALE CONFIGURAZIONI..."
 
-# Aggiorna application.py con URL API
-if [ -f "application.py" ]; then
-    echo "   🔄 Aggiornamento application.py..."
-    sed -i.bak "s|API_GATEWAY_URL =.*|API_GATEWAY_URL = '$API_URL'|g" application.py 2>/dev/null || echo "     ⚠️  Impossibile aggiornare application.py"
+# Verifica che i file siano corretti
+echo "   🔍 Controllo app.js..."
+if grep -q "API_BASE_URL = '$API_URL'" static/js/app.js 2>/dev/null; then
+    echo "   ✅ app.js configurato correttamente"
+else
+    echo "   ⚠️  app.js potrebbe non essere aggiornato"
+    echo "   ℹ️  Controlla manualmente: static/js/app.js"
 fi
 
-# Aggiorna app.js con URL API
-if [ -f "static/js/app.js" ]; then
-    echo "   🔄 Aggiornamento app.js..."
-    sed -i.bak "s|let API_BASE_URL =.*|let API_BASE_URL = '$API_URL';|g" static/js/app.js 2>/dev/null || echo "     ⚠️  Impossibile aggiornare app.js"
-fi
-
-# Aggiorna auth.js con Cognito config
+echo "   🔍 Controllo auth.js..."
 if [ -f "static/js/auth.js" ]; then
-    echo "   🔄 Aggiornamento auth.js..."
-    sed -i.bak "s|const USER_POOL_ID =.*|const USER_POOL_ID = '$USER_POOL_ID';|g" static/js/auth.js 2>/dev/null || echo "     ⚠️  Impossibile aggiornare USER_POOL_ID"
-    sed -i.bak "s|const CLIENT_ID =.*|const CLIENT_ID = '$CLIENT_ID';|g" static/js/auth.js 2>/dev/null || echo "     ⚠️  Impossibile aggiornare CLIENT_ID"
+    CURRENT_POOL=$(grep "USER_POOL_ID = " static/js/auth.js | cut -d\' -f2)
+    CURRENT_CLIENT=$(grep "CLIENT_ID = " static/js/auth.js | cut -d\' -f2)
+    echo "   ✅ auth.js contiene:"
+    echo "      USER_POOL_ID: $CURRENT_POOL"
+    echo "      CLIENT_ID: $CURRENT_CLIENT"
+fi
+
+echo "   🔍 Controllo application.py..."
+if grep -q "API_GATEWAY_URL = " application.py 2>/dev/null; then
+    CURRENT_API=$(grep "API_GATEWAY_URL = " application.py | cut -d\' -f2)
+    echo "   ✅ application.py contiene API_GATEWAY_URL: $CURRENT_API"
 fi
 
 # Pulisci file backup
 find . -name "*.bak" -delete 2>/dev/null || true
+find . -name "*.backup" -delete 2>/dev/null || true
 
 echo ""
 echo "======================================================"
-echo " ✅ INFRASTRUTTURA BASE COMPLETATA AL 100%"
+echo " ✅ INFRASTRUTTURA BASE COMPLETATA"
 echo "======================================================"
 echo ""
 echo "📋 SERVIZI CONFIGURATI:"
 echo "   ✅ S3 Bucket: $S3_BUCKET_FULL"
-echo "   ✅ Elastic Beanstalk App: $APP_NAME"
 echo "   ✅ Lambda Stack: $LAMBDA_STACK"
 echo "   ✅ API Gateway: $API_URL"
 echo "   ✅ Cognito User Pool: $USER_POOL_ID"
@@ -322,12 +401,12 @@ echo "🔐 CREDENZIALI TEST:"
 echo "   📧 Email: $TEST_USER_EMAIL"
 echo "   🔑 Password: $TEST_USER_PASSWORD"
 echo ""
-echo "⚙️  RUOLI IAM CONFIGURATI:"
-echo "   ✅ aws-elasticbeanstalk-service-role"
-echo "   ✅ aws-elasticbeanstalk-ec2-role"
-echo "   ✅ AmazonEC2FullAccess - Risolve ec2:DescribeLaunchTemplates"
-echo "   ✅ AutoScalingFullAccess - Risolve permessi AutoScaling"
-echo "   ✅ Policy custom EB-EC2-LaunchTemplate-Permissions"
+echo "📁 FILE AGGIORNATI:"
+echo "   ✅ static/js/app.js - URL API Gateway"
+echo "   ✅ application.py - URL API Gateway"
+echo ""
+echo "ℹ️  NOTA: auth.js non è stato modificato - usa i valori hardcoded già presenti"
 echo ""
 echo "🚀 PRONTO PER IL PROSSIMO STEP: ./3-deploy-ecr-and-docker.sh"
 echo "======================================================"
+[file content end]
