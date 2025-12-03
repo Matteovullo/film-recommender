@@ -1,39 +1,90 @@
-# Film Recommender su AWS
+# Film Recommender System
 
-Film Recommender è una web app serverless su AWS per consigliare film in base alle preferenze utente, offrendo anche dashboard statistiche e gestione asincrona delle richieste.
+Sistema di raccomandazione film deployato su AWS con architettura serverless e containerizzata.
 
----
+## Architettura
 
-## Descrizione del Progetto
+- **Frontend**: Applicazione Flask containerizzata su Elastic Beanstalk
+- **Backend**: API Gateway + Lambda Functions (Python 3.9)
+- **Database**: DynamoDB per storage analytics
+- **Autenticazione**: AWS Cognito User Pool
+- **Code**: SQS per elaborazioni asincrone
+- **CI/CD**: CodePipeline con GitHub integration
 
-- **Front-end:**  
-  Sviluppato in HTML, CSS, JavaScript. Gli utenti inseriscono il genere preferito e ricevono raccomandazioni immediate. Sono presenti login, dashboard analytics e interfaccia responsive.
+## Struttura Progetto
 
-- **Back-end & Lambda:**  
-  Due Lambda Python (`lambda_function.py`, `queue_processor.py`): gestiscono richieste (API Gateway) sia sincrone sia asincrone via SQS. Tutte le analytics delle raccomandazioni sono registrate su DynamoDB.
+```
+film-recommender/
+├── application.py              # Applicazione Flask principale
+├── template.yaml              # Template SAM (Infrastructure as Code)
+├── Dockerfile                 # Configurazione container
+├── buildspec.yml              # Configurazione CodeBuild
+├── requirements.txt           # Dipendenze Python
+├── lambda/src/                # Funzioni Lambda
+├── static/                    # Frontend (HTML, JS, CSS)
+└── scripts/                   # Script di deployment
+```
 
-- **Pipeline CI/CD & Deploy:**  
-  Automatizzazione deploy tramite `pipeline-final.yaml` (CodePipeline/CodeBuild) e `deploy.sh`. Il deploy crea ruoli IAM, repository Docker ECR, Elastic Beanstalk e Lambda.
+## Deployment
 
----
+### Opzione 1: Deploy Completo Automatico
+```bash
+export GITHUB_TOKEN="tuo-token-github"
+./deploy-complete.sh
+```
 
-## Tecnologie Utilizzate
+### Opzione 2: Deploy Manuale Passo-Passo
+```bash
+# 1. Infrastruttura base (Lambda, API Gateway, Cognito)
+./2-setup-infrastructure.sh
 
-- AWS Lambda (Python)
-- API Gateway
-- Amazon SQS (asincrono)
-- DynamoDB
-- Elastic Beanstalk (Flask Docker)
-- AWS ECR/Docker
-- CodePipeline & CodeBuild (CI/CD)
-- HTML, CSS, JS, Chart.js
+# 2. Build e push immagine Docker
+./3-deploy-ecr-and-docker.sh
 
----
+# 3. Deploy su Elastic Beanstalk
+./4-deploy-eb.sh
 
-## Installazione e Deploy
+# 4. (Opzionale) Creazione pipeline CI/CD
+./5-create-pipeline.sh
+```
 
-1. **Prerequisiti:**
-   - AWS CLI configurata
-   - SAM CLI installata (opzionale ma consigliata)
-   - Permessi AWS admin
-   - Docker
+## Credenziali Test
+
+- **URL Applicazione**: Controlla output dello script di deploy
+- **Email**: test@filmrecommender.com
+- **Password**: Password123!
+
+## API Endpoints
+
+- `POST /api/recommend` - Raccomandazioni sincrone
+- `POST /api/recommend/async` - Raccomandazioni asincrone (SQS)
+- `GET /api/recommend/status/{id}` - Stato richiesta asincrona
+- `GET /api/analytics` - Metriche utilizzo
+- `GET /api/health` - Health check
+
+## Troubleshooting
+
+### Problema: "Errore di connessione al servizio di coda"
+Verifica che `application.py` abbia l'URL API Gateway corretto:
+```bash
+cat application.py | grep "API_GATEWAY_URL"
+```
+
+### Problema: Pipeline CI/CD fallisce
+1. Prima fai commit dei file corretti su GitHub
+2. Poi crea la pipeline CI/CD
+
+## Note Importanti
+
+- Il progetto utilizza AWS Free Tier
+- Monitorare l'utilizzo per evitare costi non previsti
+- I file di configurazione vengono aggiornati automaticamente dagli script
+- La pipeline CI/CD si attiva automaticamente ad ogni push su GitHub
+
+## File Chiave
+
+- `template.yaml`: Definisce tutta l'infrastruttura AWS
+- `application.py`: Logica applicazione Flask
+- `static/js/auth.js`: Gestione autenticazione Cognito
+- `static/js/app.js`: Logica frontend
+- `buildspec.yml`: Configurazione build pipeline CI/CD
