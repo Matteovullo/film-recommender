@@ -14,15 +14,31 @@ Sistema di raccomandazione film deployato su AWS con architettura serverless e c
 ## Struttura Progetto
 
 ```
-film-recommender/
-├── application.py              # Applicazione Flask principale
-├── template.yaml              # Template SAM (Infrastructure as Code)
-├── Dockerfile                 # Configurazione container
-├── buildspec.yml              # Configurazione CodeBuild
-├── requirements.txt           # Dipendenze Python
-├── lambda/src/                # Funzioni Lambda
-├── static/                    # Frontend (HTML, JS, CSS)
-└── scripts/                   # Script di deployment
+.
+├── application.py          # Applicazione Flask (Frontend/Proxy)
+├── Dockerfile              # Definizione ambiente container per Flask
+├── buildspec.yml           # Istruzioni Build per AWS CodeBuild 
+├── 1-cleanup-everything.sh # Script pulizia totale ambiente
+├── 2-setup-infrastructure.sh # Script setup infrastruttura Cloud
+├── 3-deploy-ecr-and-docker.sh # Script build/push Docker in ECR
+├── 4-deploy-eb.sh          # Script deployment su Elastic Beanstalk
+├── 5-create-pipeline.sh    # Script creazione pipeline CI/CD
+├── deploy-complete.sh      # Script deployment completo automatizzato
+├── pipeline-template.yaml  # Template CloudFormation per la pipeline
+├── dockerrun.aws.json      # Manifest per deployment Docker su EB
+├── requirements.txt        # Dipendenze Python per Flask/Proxy
+├── template.yaml           # Definizione Serverless (SAM/API Gateway/SQS/DB)
+├── lambda
+│   └── src
+│       ├── lambda_function.py    # Codice Lambda Controller/Dispatcher
+│       └── queue_processor.py    # Codice Lambda Worker/Elaboratore 
+└── static
+    ├── html/
+    │   ├── app.html            # Pagina Raccomandazioni (Area autenticata)
+    │   └── index.html          # Pagina Login/Registrazione (Punto di ingresso)
+    └── js/
+        ├── app.js              # Logica Polling e Inoltro Asincrono
+        └── auth.js             # Logica Autenticazione Cognito (Lato Client)
 ```
 
 ## Deployment

@@ -14,7 +14,6 @@ phases:
       - ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
       - S3_BUCKET="film-recommender-pipeline-$ACCOUNT_ID"
       
-      # Verifica/Crea bucket S3
       - |
         if ! aws s3 ls "s3://$S3_BUCKET" --region $AWS_DEFAULT_REGION &>/dev/null; then
           echo "Creating S3 bucket: $S3_BUCKET"
@@ -24,7 +23,6 @@ phases:
       - $(aws ecr get-login --region $AWS_DEFAULT_REGION --no-include-email)
       - REPOSITORY_URI=023048164072.dkr.ecr.eu-west-1.amazonaws.com/film-recommender
       
-      # Docker Hub authentication
       - echo "Authenticating to Docker Hub..."
       - export DOCKER_SECRET_NAME="dockerhub-auth-secret"
       - DOCKER_CREDENTIALS=$(aws secretsmanager get-secret-value --secret-id $DOCKER_SECRET_NAME --region $AWS_DEFAULT_REGION --query SecretString --output text)
@@ -38,18 +36,14 @@ phases:
       
   build:
     commands:
-      # Build Docker image
       - echo "Building Docker image..."
       - docker build -t $REPOSITORY_URI:latest .
       - docker tag $REPOSITORY_URI:latest $REPOSITORY_URI:$IMAGE_TAG
-      
-      # SAM packaging
       - echo "Packaging Serverless application (SAM)..."
       - sam package --template-file template.yaml --output-template-file packaged.yaml --s3-bucket $S3_BUCKET --region $AWS_DEFAULT_REGION
 
   post_build:
     commands:
-      # Push Docker images
       - echo "Pushing Docker images to ECR..."
       - docker push $REPOSITORY_URI:latest
       - docker push $REPOSITORY_URI:$IMAGE_TAG

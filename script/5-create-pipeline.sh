@@ -2,31 +2,35 @@
 set -e
 
 echo "======================================================"
-echo " CREAZIONE PIPELINE CI/CD CON GITHUB"
+echo " 🚀 CREAZIONE PIPELINE CI/CD CON GITHUB"
 echo "======================================================"
 echo " Configura pipeline automatica per il repository"
 echo "======================================================"
 
+# Configurazioni
 REGION="eu-west-1"
 PIPELINE_BASE_NAME="film-pipe"
 GITHUB_OWNER="Matteovullo"
 GITHUB_REPO="film-recommender" 
 GITHUB_BRANCH="main"
 
+# Configurazioni applicazione
 APP_NAME="film-recommender-final"
 ENV_NAME="film-recommender-final-env"
 LAMBDA_STACK="film-recommender-final-lambda-stack"
 
+# Recupera Account ID
 ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
 
 echo ""
-echo "CONFIGURAZIONE PIPELINE:"
+echo "🎯 CONFIGURAZIONE PIPELINE:"
 echo "   Repository: $GITHUB_OWNER/$GITHUB_REPO"
 echo "   Branch: $GITHUB_BRANCH"
 echo "   Account: $ACCOUNT_ID"
 echo "   Region: $REGION"
 echo ""
 
+# FUNZIONE: Trova prossima versione pipeline
 find_next_pipeline_version() {
     local max_version=0
     
@@ -50,14 +54,15 @@ find_next_pipeline_version() {
 PIPELINE_VERSION=$(find_next_pipeline_version)
 PIPELINE_STACK_NAME="$PIPELINE_BASE_NAME-$PIPELINE_VERSION"
 
-echo "CREAZIONE PIPELINE: $PIPELINE_STACK_NAME"
+echo "📦 CREAZIONE PIPELINE: $PIPELINE_STACK_NAME"
 
+# FUNZIONE: Richiedi GitHub Token
 get_github_token() {
     echo ""
-    echo "CONFIGURAZIONE GITHUB TOKEN"
+    echo "🔐 CONFIGURAZIONE GITHUB TOKEN"
     echo "   Per collegare GitHub a CodePipeline, serve un Personal Access Token"
     echo ""
-    echo "ISTRUZIONI PER CREARE IL TOKEN:"
+    echo "💡 ISTRUZIONI PER CREARE IL TOKEN:"
     echo "   1. Vai su GitHub > Settings > Developer settings > Personal access tokens"
     echo "   2. Clicca 'Generate new token' (classic)"
     echo "   3. Dai un nome (es: 'aws-codepipeline')"
@@ -69,12 +74,13 @@ get_github_token() {
     read -p "   Inserisci il GitHub Personal Access Token: " GITHUB_TOKEN
     
     if [ -z "$GITHUB_TOKEN" ]; then
-        echo "Token GitHub non fornito"
+        echo "❌ Token GitHub non fornito"
         exit 1
     fi
     
+    # Verifica base del token (dovrebbe iniziare con ghp_)
     if [[ ! $GITHUB_TOKEN =~ ^(ghp_|github_pat_) ]]; then
-        echo "Token non sembra nel formato standard"
+        echo "⚠️  Il token non sembra nel formato standard"
         read -p "   Continuare comunque? (s/n): " -n 1 -r
         echo
         if [[ ! $REPLY =~ ^[Ss]$ ]]; then
@@ -85,16 +91,18 @@ get_github_token() {
     export GITHUB_TOKEN
 }
 
+# FUNZIONE: Verifica che il template esista
 verify_template() {
     if [ ! -f "pipeline-template.yaml" ]; then
-        echo "ERRORE: pipeline-template.yaml non trovato"
+        echo "❌ ERRORE: pipeline-template.yaml non trovato"
         echo "   Creazione template di emergenza..."
         create_emergency_template
     else
-        echo "Template pipeline trovato"
+        echo "✅ Template pipeline trovato"
     fi
 }
 
+# FUNZIONE: Crea template di emergenza
 create_emergency_template() {
     cat > pipeline-template.yaml << 'EOF'
 AWSTemplateFormatVersion: '2010-09-09'
@@ -130,6 +138,7 @@ Parameters:
     Default: v1
 
 Resources:
+  # S3 Bucket per artifacts
   ArtifactStoreBucket:
     Type: AWS::S3::Bucket
     Properties:
@@ -137,6 +146,7 @@ Resources:
       VersioningConfiguration:
         Status: Enabled
 
+  # CodeBuild Role con permessi completi
   CodeBuildRole:
     Type: AWS::IAM::Role
     Properties:
@@ -150,6 +160,7 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
+  # CodeBuild Project
   CodeBuildProject:
     Type: AWS::CodeBuild::Project
     Properties:
@@ -173,6 +184,7 @@ Resources:
       ServiceRole: !Ref CodeBuildRole
       TimeoutInMinutes: 30
 
+  # CodePipeline Role
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:
@@ -198,6 +210,7 @@ Resources:
                   - iam:PassRole
                 Resource: "*"
 
+  # CodePipeline
   CodePipeline:
     Type: AWS::CodePipeline::Pipeline
     Properties:
@@ -279,29 +292,33 @@ Outputs:
     Description: S3 Artifact Bucket
     Value: !Ref ArtifactStoreBucket
 EOF
-    echo "Template di emergenza creato"
+    echo "✅ Template di emergenza creato"
 }
 
+# FUNZIONE: Verifica prerequisiti
 check_prerequisites() {
     echo ""
-    echo "VERIFICA PREREQUISITI..."
+    echo "🔍 VERIFICA PREREQUISITI..."
     
+    # Verifica AWS CLI
     if ! command -v aws &> /dev/null; then
-        echo "AWS CLI non installato"
+        echo "❌ AWS CLI non installato"
         exit 1
     fi
     
+    # Verifica credenziali AWS
     if ! aws sts get-caller-identity &> /dev/null; then
-        echo "Credenziali AWS non configurate"
+        echo "❌ Credenziali AWS non configurate"
         exit 1
     fi
     
-    echo "AWS CLI e credenziali OK"
+    echo "✅ AWS CLI e credenziali OK"
 }
 
+# FUNZIONE: Verifica buildspec
 verify_buildspec() {
     if [ ! -f "buildspec.yml" ]; then
-        echo "buildspec.yml non trovato, creazione versione base..."
+        echo "⚠️  buildspec.yml non trovato, creazione versione base..."
         cat > buildspec.yml << 'EOF'
 version: 0.2
 
@@ -348,13 +365,14 @@ artifacts:
     - '**/*'
 EOF
     else
-        echo "buildspec.yml trovato"
+        echo "✅ buildspec.yml trovato"
     fi
 }
 
+# FUNZIONE: Deploy pipeline
 deploy_pipeline() {
     echo ""
-    echo "DEPLOY PIPELINE IN CORSO..."
+    echo "🚀 DEPLOY PIPELINE IN CORSO..."
     
     aws cloudformation deploy \
         --template-file pipeline-template.yaml \
@@ -371,86 +389,93 @@ deploy_pipeline() {
         --capabilities CAPABILITY_IAM CAPABILITY_NAMED_IAM \
         --region $REGION
     
-    echo "Pipeline deploy completato"
+    echo "✅ Pipeline deploy completato"
 }
 
+# FUNZIONE: Verifica stato pipeline
 verify_pipeline() {
     echo ""
-    echo "VERIFICA STATO PIPELINE..."
+    echo "🔍 VERIFICA STATO PIPELINE..."
     
-    echo "Attesa creazione pipeline (30s)..."
+    # Attendi che la pipeline sia creata
+    echo "⏳ Attesa creazione pipeline (30s)..."
     sleep 30
     
+    # Verifica che la pipeline esista
     if aws codepipeline get-pipeline --name "film-pipe-$PIPELINE_VERSION" --region $REGION &>/dev/null; then
-        echo "Pipeline creata con successo"
+        echo "✅ Pipeline creata con successo"
         
-        echo "Verifica webhook GitHub..."
-        echo "Controlla manualmente: https://github.com/$GITHUB_OWNER/$GITHUB_REPO/settings/hooks"
+        # Verifica webhook GitHub
+        echo "🔗 Verifica webhook GitHub..."
+        echo "💡 Controlla manualmente: https://github.com/$GITHUB_OWNER/$GITHUB_REPO/settings/hooks"
         
-        echo "Avvio prima esecuzione pipeline..."
+        # Trigger prima esecuzione
+        echo "🚀 Avvio prima esecuzione pipeline..."
         aws codepipeline start-pipeline-execution \
             --name "film-pipe-$PIPELINE_VERSION" \
             --region $REGION
             
-        echo "Prima esecuzione avviata"
+        echo "✅ Prima esecuzione avviata"
     else
-        echo "Pipeline creata ma non immediatamente disponibile"
-        echo "Controlla tra qualche minuto nella console AWS"
+        echo "⚠️  Pipeline creata ma non immediatamente disponibile"
+        echo "💡 Controlla tra qualche minuto nella console AWS"
     fi
 }
 
+# FUNZIONE: Mostra informazioni
 show_info() {
     echo ""
     echo "======================================================"
-    echo " PIPELINE CI/CD CREATA CON SUCCESSO"
+    echo " ✅ PIPELINE CI/CD CREATA CON SUCCESSO"
     echo "======================================================"
     echo ""
-    echo "INFORMAZIONI PIPELINE:"
-    echo "   Nome Stack: $PIPELINE_STACK_NAME"
-    echo "   Versione: $PIPELINE_VERSION"
-    echo "   Build Project: film-build-$PIPELINE_VERSION"
-    echo "   S3 Bucket: film-pipe-$PIPELINE_VERSION-$ACCOUNT_ID"
+    echo "📋 INFORMAZIONI PIPELINE:"
+    echo "   📛 Nome Stack: $PIPELINE_STACK_NAME"
+    echo "   🔢 Versione: $PIPELINE_VERSION"
+    echo "   📦 Build Project: film-build-$PIPELINE_VERSION"
+    echo "   🪣 S3 Bucket: film-pipe-$PIPELINE_VERSION-$ACCOUNT_ID"
     echo ""
-    echo "URL CONSOLE:"
+    echo "🌐 URL CONSOLE:"
     echo "   Pipeline: https://$REGION.console.aws.amazon.com/codesuite/codepipeline/pipelines/film-pipe-$PIPELINE_VERSION/view"
     echo "   CodeBuild: https://$REGION.console.aws.amazon.com/codesuite/codebuild/projects/film-build-$PIPELINE_VERSION"
     echo "   CloudFormation: https://$REGION.console.aws.amazon.com/cloudformation/home"
     echo ""
-    echo "COMPONENTI CONFIGURATI:"
-    echo "   CodePipeline con trigger GitHub"
-    echo "   CodeBuild con permessi Administrator"
-    echo "   S3 Artifact Store"
-    echo "   Deploy automatico a Elastic Beanstalk"
-    echo "   Deploy automatico Lambda/API Gateway"
+    echo "🔧 COMPONENTI CONFIGURATI:"
+    echo "   ✅ CodePipeline con trigger GitHub"
+    echo "   ✅ CodeBuild con permessi Administrator"
+    echo "   ✅ S3 Artifact Store"
+    echo "   ✅ Deploy automatico a Elastic Beanstalk"
+    echo "   ✅ Deploy automatico Lambda/API Gateway"
     echo ""
-    echo "PROSSIMI PASSI:"
+    echo "🚀 PROSSIMI PASSI:"
     echo "   1. Verifica webhook GitHub: https://github.com/$GITHUB_OWNER/$GITHUB_REPO/settings/hooks"
     echo "   2. La pipeline si attiverà al prossimo commit su GitHub"
     echo "   3. Monitora lo stato nella console AWS"
     echo ""
-    echo "COMANDI RAPIDI:"
+    echo "⚡ COMANDI RAPIDI:"
     echo "   Trigger manuale: aws codepipeline start-pipeline-execution --name film-pipe-$PIPELINE_VERSION --region $REGION"
     echo "   Stato pipeline: aws codepipeline get-pipeline-state --name film-pipe-$PIPELINE_VERSION --region $REGION"
     echo "   Logs CodeBuild: aws codebuild list-builds-for-project --project-name film-build-$PIPELINE_VERSION --region $REGION"
     echo ""
-    echo "NOTE IMPORTANTI:"
+    echo "📝 NOTE IMPORTANTI:"
     echo "   - Il primo deploy richiede 15-20 minuti"
     echo "   - Se GitHub non triggera, usa il comando manuale sopra"
     echo "   - Verifica che il webhook sia configurato su GitHub"
     echo "======================================================"
 }
 
+# FUNZIONE: Gestione errori
 handle_error() {
     echo ""
-    echo "ERRORE durante la creazione della pipeline"
+    echo "❌ ERRORE durante la creazione della pipeline"
     echo ""
-    echo "TROUBLESHOOTING:"
+    echo "💡 TROUBLESHOOTING:"
     echo "   - Verifica che il GitHub Token sia valido"
     echo "   - Controlla che il repository GitHub esista: https://github.com/$GITHUB_OWNER/$GITHUB_REPO"
     echo "   - Verifica i permessi IAM dell'utente AWS"
     echo "   - Controlla che non ci siano pipeline con lo stesso nome"
     echo ""
-    echo "COMANDI DI DEBUG:"
+    echo "🔧 COMANDI DI DEBUG:"
     echo "   aws cloudformation describe-stack-events --stack-name $PIPELINE_STACK_NAME --region $REGION | head -20"
     echo "   aws cloudformation describe-stacks --stack-name $PIPELINE_STACK_NAME --region $REGION"
     echo "   aws codepipeline list-pipelines --region $REGION"
@@ -458,7 +483,9 @@ handle_error() {
     exit 1
 }
 
+# FUNZIONE PRINCIPALE
 main() {
+    # Imposta trap per gestione errori
     trap handle_error ERR
     
     check_prerequisites
@@ -470,4 +497,5 @@ main() {
     show_info
 }
 
+# Esegui
 main

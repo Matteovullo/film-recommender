@@ -79,7 +79,6 @@ Resources:
       ManagedPolicyArns:
         - arn:aws:iam::aws:policy/AdministratorAccess
 
-  # Ruolo CodePipeline con tutti i permessi necessari incluso ec2:DescribeLaunchTemplates
   CodePipelineRole:
     Type: AWS::IAM::Role
     Properties:

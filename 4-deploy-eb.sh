@@ -27,7 +27,6 @@ echo " ACCOUNT: $ACCOUNT_ID"
 echo " APPLICAZIONE: $APP_NAME"
 echo "--------------------------------------------------"
 
-# Check essential files
 ESSENTIAL_FILES=("application.py" "requirements.txt" "Dockerfile" "static/html/index.html" "static/js/auth.js")
 for file in "${ESSENTIAL_FILES[@]}"; do
     if [ ! -f "$file" ]; then
@@ -37,11 +36,9 @@ for file in "${ESSENTIAL_FILES[@]}"; do
 done
 echo " [OK] Tutti i file essenziali presenti"
 
-# --- CONFIGURAZIONE IAM ---
 echo "--------------------------------------------------"
 echo "--- CONFIGURAZIONE IAM ROLES ---"
 
-# --- SERVICE ROLE ---
 echo " > Configurazione Service Role (aws-elasticbeanstalk-service-role)..."
 if ! aws iam get-role --role-name aws-elasticbeanstalk-service-role --region $REGION &>/dev/null; then
     echo " > Creazione Service Role..."
@@ -75,7 +72,6 @@ aws iam attach-role-policy \
     2>/dev/null || echo " [INFO] Policy AWSElasticBeanstalkService già attaccata"
 
 
-# --- EC2 INSTANCE PROFILE (CRITICO PER IL DEPLOY DOCKER) ---
 echo " > Configurazione EC2 Instance Profile (aws-elasticbeanstalk-ec2-role)..."
 if ! aws iam get-role --role-name aws-elasticbeanstalk-ec2-role --region $REGION &>/dev/null; then
     echo " > Creazione EC2 Role..."
@@ -106,10 +102,8 @@ if ! aws iam get-instance-profile --instance-profile-name aws-elasticbeanstalk-e
 fi
 
 
-# --- ATTACCO POLICY ALL'EC2 ROLE (RISOLUZIONE BLOCCO ec2:Describe) ---
 echo " > Attacco policy al EC2 Role (risoluzione Describe errors)..."
 
-# Policy gestite standard
 aws iam attach-role-policy \
     --role-name aws-elasticbeanstalk-ec2-role \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWebTier \
@@ -125,8 +119,6 @@ aws iam attach-role-policy \
     --policy-arn arn:aws:iam::aws:policy/AWSElasticBeanstalkWorkerTier \
     2>/dev/null || echo " [INFO] Policy AWSElasticBeanstalkWorkerTier già attaccata"
 
-# Policy custom EC2 richieste (AGGIUNTA CRITICA per Amazon Linux 2023)
-# Risolve ec2:DescribeLaunchTemplates, ec2:DescribeImages, ecc.
 aws iam put-role-policy \
   --role-name aws-elasticbeanstalk-ec2-role \
   --policy-name custom-eb-ec2-describe-permissions \
@@ -154,7 +146,6 @@ echo " [OK] Policy custom creata per risolvere ec2:DescribeImages"
 echo " > Attesa propagazione IAM (30s)..."
 sleep 30
 
-# --- SETUP ECR ---
 echo "--------------------------------------------------"
 echo "--- SETUP ECR E DOCKER ---"
 
@@ -184,7 +175,6 @@ docker container prune -f || true
 docker image prune -a -f || true
 echo " [OK] Pulizia Docker completata"
 
-# --- ELASTIC BEANSTALK CONFIG AND DEPLOYMENT ---
 echo "--------------------------------------------------"
 echo "--- SETUP ELASTIC BEANSTALK ---"
 

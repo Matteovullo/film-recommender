@@ -2,24 +2,29 @@
 set -e
 
 echo "======================================================"
-echo " DEPLOY COMPLETO AUTOMATICO"
+echo " 🚀 DEPLOY COMPLETO AUTOMATICO"
 echo "======================================================"
 
+# Verifica GITHUB_TOKEN
 if [ -z "$GITHUB_TOKEN" ]; then
-    echo "ERRORE: GITHUB_TOKEN non impostato"
+    echo "❌ ERRORE: GITHUB_TOKEN non impostato"
     echo "Esporta il token: export GITHUB_TOKEN='tuo-token'"
     exit 1
 fi
 
+# FASE 1: Pulizia
 echo "FASE 1: Pulizia totale..."
 ./1-cleanup-everything.sh
 
+# FASE 2: Infrastruttura
 echo "FASE 2: Setup infrastruttura..."
 ./2-setup-infrastructure.sh
 
+# FASE 3: ECR e Docker
 echo "FASE 3: Setup ECR e Docker..."
 ./3-deploy-ecr-and-docker.sh
 
+# FASE 4: Pipeline
 echo "FASE 4: Deploy eb..."
 ./4-deploy-eb.sh
 
@@ -27,11 +32,12 @@ git add .
 git commit -m "update pipeline"
 git push -u origin main
 
+# FASE 4: Pipeline
 echo "FASE 5: Creazione pipeline CI/CD..."
 ./5-create-pipeline.sh
 
 echo "======================================================"
-echo " DEPLOY COMPLETATO CON SUCCESSO!"
+echo " ✅ DEPLOY COMPLETATO CON SUCCESSO!"
 echo "======================================================"
 echo "Tutte le risorse sono state create correttamente"
 echo "La pipeline CI/CD è attiva e sta eseguendo il deploy"
